@@ -1,55 +1,49 @@
-package com.example.dadstripplanner3
+package com.example.dadstripplanner3 // Ensure this matches your package name
 
-import androidx.appcompat.app.AppCompatActivity
+// import androidx.recyclerview.widget.DividerItemDecoration // Keep if you plan to use it
 import android.os.Bundle
+import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
-import com.example.dadstripplanner3.databinding.ActivityRouteOptionsBinding // View Binding class
+import com.example.dadstripplanner3.databinding.ActivityRouteOptionsBinding
 
 class RouteOptionsActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityRouteOptionsBinding
-    private lateinit var tripOptionsAdapter: TripOptionsAdapter // Declare adapter
+    private lateinit var tripOptionsAdapter: TripOptionsAdapter
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityRouteOptionsBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        // --- 1. Setup Toolbar ---
-        // Set the toolbar as the support action bar (optional, but can be useful)
-        // setSupportActionBar(binding.toolbarRouteOptions) // If you need to handle options menu items from Activity
+        // --- Retrieve data from Intent ---
+        val sourceLocation =
+            intent.getStringExtra(MainActivity.EXTRA_SOURCE_LOCATION) ?: "Unknown Source"
+        val destinationLocation =
+            intent.getStringExtra(MainActivity.EXTRA_DESTINATION_LOCATION) ?: "Unknown Destination"
 
-        // Handle navigation icon click (back arrow)
+        // --- Setup Toolbar ---
         binding.toolbarRouteOptions.setNavigationOnClickListener {
-            finish() // Closes this activity and returns to the previous one
+            finish()
         }
+        // Update toolbar title dynamically
+        binding.toolbarTitle.text = "$sourceLocation → $destinationLocation"
 
-        // Set a placeholder title (we'll make this dynamic in Step 4.1)
-        binding.toolbarTitle.text = "Trips: Origin → Destination"
 
-
-        // --- 2. Prepare Sample Data ---
         val sampleTripOptions = createSampleTripData()
-
-        // --- 3. Setup RecyclerView ---
-        // Initialize the adapter with the sample data
         tripOptionsAdapter = TripOptionsAdapter(sampleTripOptions)
-
-        // Set the LayoutManager for the RecyclerView
         binding.recyclerViewTripOptions.layoutManager = LinearLayoutManager(this)
-
-        // Set the Adapter for the RecyclerView
         binding.recyclerViewTripOptions.adapter = tripOptionsAdapter
 
-        // Optional: Add item decoration for dividers (if desired, can be done later)
+        // Optional: Add item decoration for dividers
         // val dividerItemDecoration = DividerItemDecoration(this, LinearLayoutManager.VERTICAL)
         // binding.recyclerViewTripOptions.addItemDecoration(dividerItemDecoration)
     }
 
-    // Helper function to create sample trip data (mimicking TripViewPlanner.jpg)
     private fun createSampleTripData(): List<TripOption> {
         val options = mutableListOf<TripOption>()
-
+        // ... (createSampleTripData function remains the same as in Step 3.5) ...
+        // (Ensure this function is still present in your RouteOptionsActivity.kt)
         options.add(
             TripOption(
                 duration = "26 mins",
@@ -75,7 +69,7 @@ class RouteOptionsActivity : AppCompatActivity() {
         )
         options.add(
             TripOption(
-                duration = "1hr 24 mins", // Adjusted to match "84 mins" visually
+                duration = "1hr 24 mins",
                 departureTime = "11:42 am",
                 departureLocation = "Lowe Rd opp James Park",
                 status = "On time",
@@ -108,8 +102,6 @@ class RouteOptionsActivity : AppCompatActivity() {
                 isRealTimeDataUnavailable = true
             )
         )
-        // Add more sample items if you like, following the pattern from TripViewPlanner.jpg
-
         return options
     }
 }

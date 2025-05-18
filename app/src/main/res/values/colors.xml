@@ -2,4 +2,13 @@
 <resources>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+
+    <color name="app_background_dark">#FF121212</color>
+    <color name="text_primary_dark">#FFE0E0E0</color>
+    <color name="text_secondary_dark">#FFA0A0A0</color>
+    <color name="accent_cyan_teal">#FF03DAC5</color>
+    <color name="button_text_color">#FF121212</color>
+    <color name="trip_view_teal_highlight">#FF00BFFF</color>
+    <color name="trip_view_status_late">#FFFFAB00</color>
+    <color name="trip_view_status_on_time">#FF00C853</color>
 </resources>

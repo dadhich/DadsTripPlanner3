@@ -1,3 +1,7 @@
 <resources>
     <string name="app_name">DadsTripPlanner3</string>
+    <string name="screen_title_plan_trip">Plan Trip</string>
+    <string name="label_i_want_to_go_to">I want to go to</string>
+    <string name="hint_enter_destination">Enter destination address</string>
+    <!-- ... and so on for other text ... -->
 </resources>

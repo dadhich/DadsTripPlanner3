@@ -1,7 +1,14 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- Base application theme. -->
-    <style name="Base.Theme.DadsTripPlanner3" parent="Theme.Material3.DayNight.NoActionBar">
-        <!-- Customize your dark theme here. -->
-        <!-- <item name="colorPrimary">@color/my_dark_primary</item> -->
+    <style name="Theme.DadsTripPlanner3" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="colorPrimary">@color/accent_cyan_teal</item>
+        <item name="colorOnPrimary">@color/button_text_color</item>
+        <item name="colorSecondary">@color/accent_cyan_teal</item>
+        <item name="colorOnSecondary">@color/button_text_color</item>
+
+        <item name="android:statusBarColor">@color/app_background_dark</item>
+        <item name="android:windowBackground">@color/app_background_dark</item>
+        <item name="android:textColorPrimary">@color/text_primary_dark</item>
+        <item name="android:textColorSecondary">@color/text_secondary_dark</item>
+        <item name="android:buttonStyle">@style/AppButton</item>
     </style>
 </resources>

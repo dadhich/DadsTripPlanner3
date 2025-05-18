@@ -3,5 +3,10 @@
     <string name="screen_title_plan_trip">Plan Trip</string>
     <string name="label_i_want_to_go_to">I want to go to</string>
     <string name="hint_enter_destination">Enter destination address</string>
+    <string name="radio_button_custom_location_label">Specify start address</string>
+    <string name="label_from">From</string>
+    <string name="radio_button_current_location">My current location</string>
+    <string name="hint_enter_start_address">Specify starting address</string>
+    <string name="button_next">Next</string>
     <!-- ... and so on for other text ... -->
 </resources>

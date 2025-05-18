@@ -53,72 +53,64 @@
         android:id="@+id/textViewFromLabel"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="24dp"
-        android:text="From"
-        android:textColor="?android:textColorPrimary"
+        android:text="@string/label_from"
         android:textSize="18sp"
+        android:textColor="?android:textColorPrimary"
+        app:layout_constraintTop_toBottomOf="@id/editTextDestination"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/editTextDestination" />
+        android:layout_marginTop="24dp"/>
 
     <!-- RadioGroup for Source Options -->
     <RadioGroup
         android:id="@+id/radioGroupSource"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        app:layout_constraintEnd_toEndOf="parent"
+        android:orientation="vertical" app:layout_constraintTop_toBottomOf="@id/textViewFromLabel"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/textViewFromLabel">
+        app:layout_constraintEnd_toEndOf="parent"
+        android:layout_marginTop="8dp">
 
         <RadioButton
             android:id="@+id/radioButtonCurrentLocation"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:text="@string/radio_button_current_location"
+            android:textColor="?android:textColorPrimary"
             android:buttonTint="?attr/colorPrimary"
-            android:checked="true"
-            android:text="My current location"
-            android:textColor="?android:textColorPrimary" />
+            android:checked="true"/>
 
-        <LinearLayout
+        <RadioButton
+            android:id="@+id/radioButtonCustomLocation"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:gravity="center_vertical"
-            android:orientation="horizontal">
+            android:text="@string/radio_button_custom_location_label" android:textColor="?android:textColorPrimary"
+            android:buttonTint="?attr/colorPrimary"/>
 
-            <RadioButton
-                android:id="@+id/radioButtonCustomLocation"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:buttonTint="?attr/colorPrimary"
-                android:textColor="?android:textColorPrimary" />
-            <!-- No text here, EditText serves as the label/input -->
-
-            <EditText
-                android:id="@+id/editTextSourceCustom"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:alpha="0.5"
-                android:backgroundTint="?attr/colorPrimary"
-                android:enabled="false"
-                android:hint="Enter start address"
-                android:inputType="textPostalAddress"
-                android:paddingBottom="16dp"
-                android:textColor="?android:textColorPrimary"
-                android:textColorHint="?android:textColorSecondary" />
-        </LinearLayout>
     </RadioGroup>
+
+    <EditText
+        android:id="@+id/editTextSourceCustom"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:hint="@string/hint_enter_start_address"
+        android:inputType="textPostalAddress"
+        android:textColor="?android:textColorPrimary"
+        android:textColorHint="?android:textColorSecondary"
+        android:backgroundTint="?attr/colorPrimary"
+        android:paddingBottom="16dp"
+        android:enabled="false" android:alpha="0.5"    app:layout_constraintTop_toBottomOf="@id/radioGroupSource" app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:layout_marginTop="8dp"/>
 
     <!-- Next Button -->
     <Button
         android:id="@+id/buttonNext"
-        style="@style/AppButton"
-        android:layout_width="0dp"
+        style="@style/AppButton" android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginBottom="24dp"
-        android:text="Next"
-        app:layout_constraintBottom_toBottomOf="parent"
+        android:text="@string/button_next"
+        app:layout_constraintTop_toBottomOf="@id/editTextSourceCustom" app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent" />
+        app:layout_constraintVertical_bias="1.0" android:layout_marginTop="24dp" android:layout_marginBottom="24dp"/>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

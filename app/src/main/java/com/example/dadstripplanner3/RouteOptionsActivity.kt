@@ -1,8 +1,11 @@
-package com.example.dadstripplanner3 // Ensure this matches your package name
+package com.example.dadstripplanner3 // Your package name
 
-// import androidx.recyclerview.widget.DividerItemDecoration // Keep if you plan to use it
-import android.os.Bundle
+import android.os.Build // For SDK version check for getParcelableArrayListExtra
 import androidx.appcompat.app.AppCompatActivity
+import android.os.Bundle
+import android.util.Log
+import android.view.View
+import android.widget.Toast
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.dadstripplanner3.databinding.ActivityRouteOptionsBinding
 
@@ -10,6 +13,7 @@ class RouteOptionsActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityRouteOptionsBinding
     private lateinit var tripOptionsAdapter: TripOptionsAdapter
+    private var displayableTripOptions: List<DisplayableTripOption> = emptyList()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -17,91 +21,43 @@ class RouteOptionsActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         // --- Retrieve data from Intent ---
-        val sourceLocation =
-            intent.getStringExtra(MainActivity.EXTRA_SOURCE_LOCATION) ?: "Unknown Source"
-        val destinationLocation =
-            intent.getStringExtra(MainActivity.EXTRA_DESTINATION_LOCATION) ?: "Unknown Destination"
+        val sourceLocation = intent.getStringExtra(MainActivity.EXTRA_SOURCE_LOCATION) ?: "Unknown Source"
+        val destinationLocation = intent.getStringExtra(MainActivity.EXTRA_DESTINATION_LOCATION) ?: "Unknown Destination"
+
+        // Retrieve the list of DisplayableTripOption objects
+        // Note: getParcelableArrayListExtra is deprecated for API 33+, use specific type for API 33+
+        displayableTripOptions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            intent.getParcelableArrayListExtra(MainActivity.EXTRA_TRIP_OPTIONS_LIST, DisplayableTripOption::class.java)
+        } else {
+            @Suppress("DEPRECATION")
+            intent.getParcelableArrayListExtra(MainActivity.EXTRA_TRIP_OPTIONS_LIST)
+        } ?: emptyList()
+
 
         // --- Setup Toolbar ---
         binding.toolbarRouteOptions.setNavigationOnClickListener {
             finish()
         }
-        // Update toolbar title dynamically
         binding.toolbarTitle.text = "$sourceLocation → $destinationLocation"
 
 
-        val sampleTripOptions = createSampleTripData()
-        tripOptionsAdapter = TripOptionsAdapter(sampleTripOptions)
-        binding.recyclerViewTripOptions.layoutManager = LinearLayoutManager(this)
-        binding.recyclerViewTripOptions.adapter = tripOptionsAdapter
-
-        // Optional: Add item decoration for dividers
-        // val dividerItemDecoration = DividerItemDecoration(this, LinearLayoutManager.VERTICAL)
-        // binding.recyclerViewTripOptions.addItemDecoration(dividerItemDecoration)
+        // --- Setup RecyclerView ---
+        if (displayableTripOptions.isNotEmpty()) {
+            tripOptionsAdapter = TripOptionsAdapter(displayableTripOptions)
+            binding.recyclerViewTripOptions.layoutManager = LinearLayoutManager(this)
+            binding.recyclerViewTripOptions.adapter = tripOptionsAdapter
+            binding.recyclerViewTripOptions.visibility = View.VISIBLE
+            // Add a TextView for "No trips found" and hide/show it accordingly (optional)
+            // binding.textViewNoTripsFound.visibility = View.GONE
+        } else {
+            // Handle case where no trip options were passed or an error occurred
+            Log.w("RouteOptions", "No displayable trip options received.")
+            Toast.makeText(this, "No trip options to display.", Toast.LENGTH_LONG).show()
+            binding.recyclerViewTripOptions.visibility = View.GONE
+            // binding.textViewNoTripsFound.visibility = View.VISIBLE
+        }
     }
 
-    private fun createSampleTripData(): List<TripOption> {
-        val options = mutableListOf<TripOption>()
-        // ... (createSampleTripData function remains the same as in Step 3.5) ...
-        // (Ensure this function is still present in your RouteOptionsActivity.kt)
-        options.add(
-            TripOption(
-                duration = "26 mins",
-                departureTime = "10:44 am",
-                departureLocation = "Lowe Rd opp James Park",
-                status = "10:42 running 2 mins late",
-                arrivalTime = "10:53 am",
-                arrivalLocation = "Hornsby Station",
-                transportModes = "Train T1, Bus 575",
-                isLate = true
-            )
-        )
-        options.add(
-            TripOption(
-                duration = "54 mins",
-                departureTime = "11:12 am",
-                departureLocation = "Lowe Rd opp James Park",
-                status = "On time",
-                arrivalTime = "11:21 am",
-                arrivalLocation = "Hornsby Station",
-                transportModes = "Bus 575"
-            )
-        )
-        options.add(
-            TripOption(
-                duration = "1hr 24 mins",
-                departureTime = "11:42 am",
-                departureLocation = "Lowe Rd opp James Park",
-                status = "On time",
-                arrivalTime = "11:51 am",
-                arrivalLocation = "Hornsby Station",
-                transportModes = "Bus 575, Train T9"
-            )
-        )
-        options.add(
-            TripOption(
-                duration = "2 hrs",
-                departureTime = "12:12 pm",
-                departureLocation = "Lowe Rd opp James Park",
-                status = "Real-time data unavailable",
-                arrivalTime = "12:21 pm",
-                arrivalLocation = "Hornsby Station",
-                transportModes = "Bus 575",
-                isRealTimeDataUnavailable = true
-            )
-        )
-        options.add(
-            TripOption(
-                duration = "2 hrs",
-                departureTime = "12:42 pm",
-                departureLocation = "Lowe Rd opp James Park",
-                status = "Real-time data unavailable",
-                arrivalTime = "12:51 pm",
-                arrivalLocation = "Hornsby Station",
-                transportModes = "Train T1",
-                isRealTimeDataUnavailable = true
-            )
-        )
-        return options
-    }
+    // The createSampleTripData() function is no longer needed and can be removed.
+    // private fun createSampleTripData(): List<DisplayableTripOption> { ... }
 }

@@ -58,16 +58,23 @@ class MainActivity : AppCompatActivity() {
     companion object {
         const val EXTRA_SOURCE_LOCATION = "com.example.dadstripplanner3.SOURCE_LOCATION"
         const val EXTRA_DESTINATION_LOCATION = "com.example.dadstripplanner3.DESTINATION_LOCATION"
-        const val EXTRA_TRIP_OPTIONS_LIST = "com.example.dadstripplanner3.TRIP_OPTIONS_LIST" // New key
+        const val EXTRA_TRIP_OPTIONS_LIST =
+            "com.example.dadstripplanner3.TRIP_OPTIONS_LIST" // New key
         private const val LOCATION_PERMISSION_REQUEST_CODE = 1001
     }
 
     private val locationSettingsLauncher = registerForActivityResult(
         ActivityResultContracts.StartIntentSenderForResult()
     ) { result ->
-        Log.d("LocationSettings", "Returned from location settings dialog with result code: ${result.resultCode}")
+        Log.d(
+            "LocationSettings",
+            "Returned from location settings dialog with result code: ${result.resultCode}"
+        )
         if (result.resultCode == AppCompatActivity.RESULT_OK) {
-            Log.d("LocationSettings", "User confirmed settings change (RESULT_OK). Re-checking location.")
+            Log.d(
+                "LocationSettings",
+                "User confirmed settings change (RESULT_OK). Re-checking location."
+            )
         } else {
             Log.d("LocationSettings", "User cancelled or backed out of settings change.")
             Toast.makeText(this, "Location services may not be enabled.", Toast.LENGTH_SHORT).show()
@@ -125,7 +132,11 @@ class MainActivity : AppCompatActivity() {
             if (binding.radioButtonCurrentLocation.isChecked) {
                 // ... (permission, service, and currentActualLocation null checks remain the same)
                 if (currentActualLocation == null) {
-                    Toast.makeText(this, "Current location details unavailable. Cannot plan trip.", Toast.LENGTH_LONG).show()
+                    Toast.makeText(
+                        this,
+                        "Current location details unavailable. Cannot plan trip.",
+                        Toast.LENGTH_LONG
+                    ).show()
                     if (currentFetchedLocationString?.contains("Fetching") == true) fetchOrRequestLocation()
                     return@setOnClickListener
                 }
@@ -153,7 +164,8 @@ class MainActivity : AppCompatActivity() {
             }
 
             if (destinationInput.isEmpty()) {
-                Toast.makeText(this, "Please enter a destination address", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "Please enter a destination address", Toast.LENGTH_SHORT)
+                    .show()
                 binding.editTextDestination.error = "Destination cannot be empty"
                 return@setOnClickListener
             }
@@ -187,27 +199,48 @@ class MainActivity : AppCompatActivity() {
             )
 
             call.enqueue(object : Callback<TripResponse> {
-                override fun onResponse(call: Call<TripResponse>, response: Response<TripResponse>) {
+                override fun onResponse(
+                    call: Call<TripResponse>,
+                    response: Response<TripResponse>
+                ) {
                     binding.buttonNext.isEnabled = true
                     if (response.isSuccessful) {
                         val tripResponse = response.body()
                         if (tripResponse != null && tripResponse.journeys != null && !tripResponse.journeys.isEmpty()) {
                             // --- DATA TRANSFORMATION ---
-                            val displayableTrips = transformApiJourneysToDisplayableOptions(tripResponse.journeys)
-                            Log.d("APIResponse", "Success: ${displayableTrips.size} displayable journeys created.")
+                            val displayableTrips =
+                                transformApiJourneysToDisplayableOptions(tripResponse.journeys)
+                            Log.d(
+                                "APIResponse",
+                                "Success: ${displayableTrips.size} displayable journeys created."
+                            )
                             // You can remove the forEach log here if you've confirmed it's working
                             // displayableTrips.forEachIndexed { index, trip ->
                             //    Log.d("TransformedTrip[$index]", "Duration: ${trip.overallDurationInMinutes}min, Dep: ${trip.departureTimeFormatted} (${trip.departureStatus}), Arr: ${trip.arrivalTimeFormatted}, Modes: ${trip.transportModesSummary}, From: ${trip.effectiveOriginName}, To: ${trip.effectiveDestinationName}, Interchanges: ${trip.interchanges}")
                             // }
-                            Toast.makeText(this@MainActivity, "Trip options processed! (${displayableTrips.size})", Toast.LENGTH_LONG).show()
+                            Toast.makeText(
+                                this@MainActivity,
+                                "Trip options processed! (${displayableTrips.size})",
+                                Toast.LENGTH_LONG
+                            ).show()
 
                             // --- PASS PROCESSED DATA TO RouteOptionsActivity ---
-                            val intent = Intent(this@MainActivity, RouteOptionsActivity::class.java).apply {
-                                putExtra(EXTRA_SOURCE_LOCATION, sourceForIntentDisplay) // Keep for title
-                                putExtra(EXTRA_DESTINATION_LOCATION, destinationInput) // Keep for title
-                                // Pass the list of Parcelable trip options
-                                putParcelableArrayListExtra(EXTRA_TRIP_OPTIONS_LIST, ArrayList(displayableTrips))
-                            }
+                            val intent =
+                                Intent(this@MainActivity, RouteOptionsActivity::class.java).apply {
+                                    putExtra(
+                                        EXTRA_SOURCE_LOCATION,
+                                        sourceForIntentDisplay
+                                    ) // Keep for title
+                                    putExtra(
+                                        EXTRA_DESTINATION_LOCATION,
+                                        destinationInput
+                                    ) // Keep for title
+                                    // Pass the list of Parcelable trip options
+                                    putParcelableArrayListExtra(
+                                        EXTRA_TRIP_OPTIONS_LIST,
+                                        ArrayList(displayableTrips)
+                                    )
+                                }
                             startActivity(intent)
 
                         } else if (tripResponse != null && tripResponse.systemMessages != null && !tripResponse.systemMessages.isEmpty()) {
@@ -215,30 +248,55 @@ class MainActivity : AppCompatActivity() {
                             var errorMessages = "API Info: "
                             tripResponse.systemMessages.forEach { msg ->
                                 errorMessages += "${msg.text}; "
-                                Log.w("APIResponse", "System Message: Type=${msg.type}, Module=${msg.module}, Code=${msg.code}, Text=${msg.text}")
+                                Log.w(
+                                    "APIResponse",
+                                    "System Message: Type=${msg.type}, Module=${msg.module}, Code=${msg.code}, Text=${msg.text}"
+                                )
                             }
-                            Toast.makeText(this@MainActivity, errorMessages, Toast.LENGTH_LONG).show()
-                            if (tripResponse.journeys == null || tripResponse.journeys.isEmpty()){
-                                Log.w("APIResponse", "Success (HTTP 200) but no journeys found (due to input issues reported in systemMessages).")
+                            Toast.makeText(this@MainActivity, errorMessages, Toast.LENGTH_LONG)
+                                .show()
+                            if (tripResponse.journeys == null || tripResponse.journeys.isEmpty()) {
+                                Log.w(
+                                    "APIResponse",
+                                    "Success (HTTP 200) but no journeys found (due to input issues reported in systemMessages)."
+                                )
                             }
                         } else {
                             // ... (existing handling for null/malformed successful response) ...
-                            Log.w("APIResponse", "Success (HTTP 200) but response body is null, malformed, or no journeys/messages.")
-                            Toast.makeText(this@MainActivity, "Received an empty or unexpected valid response.", Toast.LENGTH_LONG).show()
+                            Log.w(
+                                "APIResponse",
+                                "Success (HTTP 200) but response body is null, malformed, or no journeys/messages."
+                            )
+                            Toast.makeText(
+                                this@MainActivity,
+                                "Received an empty or unexpected valid response.",
+                                Toast.LENGTH_LONG
+                            ).show()
                         }
                     } else {
                         // ... (existing API error handling) ...
                         val errorBody = response.errorBody()?.string()
-                        Log.e("APIResponse", "API Error: ${response.code()} - ${response.message()}")
+                        Log.e(
+                            "APIResponse",
+                            "API Error: ${response.code()} - ${response.message()}"
+                        )
                         Log.e("APIResponse", "Error Body: $errorBody")
-                        Toast.makeText(this@MainActivity, "API Error: ${response.code()} - Check logs.", Toast.LENGTH_LONG).show()
+                        Toast.makeText(
+                            this@MainActivity,
+                            "API Error: ${response.code()} - Check logs.",
+                            Toast.LENGTH_LONG
+                        ).show()
                     }
                 }
 
                 override fun onFailure(call: Call<TripResponse>, t: Throwable) {
                     binding.buttonNext.isEnabled = true
                     Log.e("APIResponse", "Network Failure: ${t.message}", t)
-                    Toast.makeText(this@MainActivity, "Network Error: ${t.message}", Toast.LENGTH_LONG).show()
+                    Toast.makeText(
+                        this@MainActivity,
+                        "Network Error: ${t.message}",
+                        Toast.LENGTH_LONG
+                    ).show()
                 }
             })
         }
@@ -255,12 +313,14 @@ class MainActivity : AppCompatActivity() {
             binding.editTextSourceCustom.alpha = 1.0f
         }
     }
+
     private fun isLocationPermissionGranted(): Boolean { /* ... as before ... */
         return ContextCompat.checkSelfPermission(
             this,
             Manifest.permission.ACCESS_FINE_LOCATION
         ) == PackageManager.PERMISSION_GRANTED
     }
+
     private fun requestLocationPermission() { /* ... as before ... */
         ActivityCompat.requestPermissions(
             this,
@@ -268,11 +328,13 @@ class MainActivity : AppCompatActivity() {
             LOCATION_PERMISSION_REQUEST_CODE
         )
     }
+
     private fun isLocationServicesEnabled(): Boolean { /* ... as before ... */
         val locationManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
         return locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER) ||
                 locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
     }
+
     private fun promptToEnableLocationServices() { /* ... as before ... */
         val locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 10000)
             .setMinUpdateIntervalMillis(5000)
@@ -281,7 +343,10 @@ class MainActivity : AppCompatActivity() {
         val client: SettingsClient = LocationServices.getSettingsClient(this)
         val task: Task<LocationSettingsResponse> = client.checkLocationSettings(builder.build())
         task.addOnSuccessListener {
-            Log.d("LocationSettings", "Location settings are satisfied (promptToEnableLocationServices).")
+            Log.d(
+                "LocationSettings",
+                "Location settings are satisfied (promptToEnableLocationServices)."
+            )
             if (binding.radioButtonCurrentLocation.isChecked) {
                 fetchOrRequestLocation()
             }
@@ -290,19 +355,33 @@ class MainActivity : AppCompatActivity() {
             Log.w("LocationSettings", "Location settings check failed.", exception)
             if (exception is ResolvableApiException) {
                 try {
-                    val intentSenderRequest = IntentSenderRequest.Builder(exception.resolution.intentSender).build()
+                    val intentSenderRequest =
+                        IntentSenderRequest.Builder(exception.resolution.intentSender).build()
                     locationSettingsLauncher.launch(intentSenderRequest)
                 } catch (sendEx: Exception) {
-                    Log.e("LocationSettings", "Error starting settings resolution: ${sendEx.message}", sendEx)
-                    Toast.makeText(this, "Error opening location settings. Please enable manually.", Toast.LENGTH_LONG).show()
+                    Log.e(
+                        "LocationSettings",
+                        "Error starting settings resolution: ${sendEx.message}",
+                        sendEx
+                    )
+                    Toast.makeText(
+                        this,
+                        "Error opening location settings. Please enable manually.",
+                        Toast.LENGTH_LONG
+                    ).show()
                 }
             } else {
-                Toast.makeText(this, "Location settings are inadequate. Please enable manually.", Toast.LENGTH_LONG).show()
+                Toast.makeText(
+                    this,
+                    "Location settings are inadequate. Please enable manually.",
+                    Toast.LENGTH_LONG
+                ).show()
                 currentFetchedLocationString = "My Current Location (Settings Issue)"
                 currentActualLocation = null
             }
         }
     }
+
     private fun fetchOrRequestLocation() { /* ... as before ... */
         if (!isLocationPermissionGranted()) {
             currentFetchedLocationString = "My Current Location (Permission Needed)"
@@ -319,6 +398,7 @@ class MainActivity : AppCompatActivity() {
         Log.d("LocationFetch", "Permissions and services OK. Getting last known location.")
         getLastKnownLocation()
     }
+
     @SuppressLint("MissingPermission")
     private fun getLastKnownLocation() { /* ... as before ... */
         currentFetchedLocationString = "My Current Location (Fetching...)"
@@ -328,7 +408,10 @@ class MainActivity : AppCompatActivity() {
                     Log.d("LocationFetch", "Last known location found.")
                     updateLocationDetails(location)
                 } else {
-                    Log.d("LocationFetch", "Last known location is null. Requesting new location update.")
+                    Log.d(
+                        "LocationFetch",
+                        "Last known location is null. Requesting new location update."
+                    )
                     startLocationUpdates()
                 }
             }
@@ -336,17 +419,22 @@ class MainActivity : AppCompatActivity() {
                 Log.e("LocationFetch", "Failed to get last known location.", e)
                 currentFetchedLocationString = "My Current Location (Error LastKnown)"
                 currentActualLocation = null
-                Toast.makeText(this, "Error getting last location. Trying fresh.", Toast.LENGTH_SHORT).show()
+                Toast.makeText(
+                    this,
+                    "Error getting last location. Trying fresh.",
+                    Toast.LENGTH_SHORT
+                ).show()
                 startLocationUpdates()
             }
     }
+
     @SuppressLint("MissingPermission")
     private fun startLocationUpdates() { /* ... as before ... */
         if (requestingLocationUpdates) {
             Log.d("LocationFetch", "Already requesting location updates.")
             return
         }
-        if (!isLocationServicesEnabled()){
+        if (!isLocationServicesEnabled()) {
             Log.d("LocationFetch", "Location services disabled before starting updates.")
             currentFetchedLocationString = "My Current Location (Services Off)"
             currentActualLocation = null
@@ -363,13 +451,20 @@ class MainActivity : AppCompatActivity() {
             locationCallback = object : LocationCallback() {
                 override fun onLocationResult(locationResult: LocationResult) {
                     locationResult.lastLocation?.let { location ->
-                        Log.d("LocationFetch", "New location received via update: Lat: ${location.latitude}, Lon: ${location.longitude}")
+                        Log.d(
+                            "LocationFetch",
+                            "New location received via update: Lat: ${location.latitude}, Lon: ${location.longitude}"
+                        )
                         updateLocationDetails(location)
                     } ?: run {
                         Log.d("LocationFetch", "LocationResult.lastLocation is null in callback.")
                         if (currentActualLocation == null) {
                             currentFetchedLocationString = "My Current Location (Update Failed)"
-                            Toast.makeText(this@MainActivity, "Failed to get current location update.", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(
+                                this@MainActivity,
+                                "Failed to get current location update.",
+                                Toast.LENGTH_SHORT
+                            ).show()
                         }
                     }
                     stopLocationUpdates()
@@ -389,6 +484,7 @@ class MainActivity : AppCompatActivity() {
             requestingLocationUpdates = false
         }
     }
+
     private fun stopLocationUpdates() { /* ... as before ... */
         if (requestingLocationUpdates) {
             locationCallback?.let {
@@ -399,7 +495,11 @@ class MainActivity : AppCompatActivity() {
                         if (task.isSuccessful) {
                             Log.d("LocationFetch", "Successfully stopped location updates.")
                         } else {
-                            Log.w("LocationFetch", "Failed to stop location updates.", task.exception)
+                            Log.w(
+                                "LocationFetch",
+                                "Failed to stop location updates.",
+                                task.exception
+                            )
                         }
                     }
             } ?: run {
@@ -407,14 +507,17 @@ class MainActivity : AppCompatActivity() {
             }
         }
     }
+
     private fun updateLocationDetails(location: Location) { /* ... as before ... */
         currentActualLocation = location
         val latStr = String.format("%.3f", location.latitude)
         val lonStr = String.format("%.3f", location.longitude)
         currentFetchedLocationString = "My Current Location (Lat: $latStr, Lon: $lonStr)"
-        Toast.makeText(this, "Location updated: $currentFetchedLocationString", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, "Location updated: $currentFetchedLocationString", Toast.LENGTH_SHORT)
+            .show()
         Log.d("LocationFetch", "Location details updated: $currentFetchedLocationString")
     }
+
     override fun onRequestPermissionsResult( /* ... as before ... */
                                              requestCode: Int,
                                              permissions: Array<out String>,
@@ -434,7 +537,11 @@ class MainActivity : AppCompatActivity() {
                 currentActualLocation = null
                 if (binding.radioButtonCurrentLocation.isChecked) {
                     binding.radioButtonCustomLocation.isChecked = true
-                    Toast.makeText(this, "Cannot use current location. Switched to custom source.", Toast.LENGTH_LONG).show()
+                    Toast.makeText(
+                        this,
+                        "Cannot use current location. Switched to custom source.",
+                        Toast.LENGTH_LONG
+                    ).show()
                 }
             }
         }
@@ -451,7 +558,8 @@ class MainActivity : AppCompatActivity() {
             // If the API returns zone explicitly (like AEST), ZonedDateTime should handle it.
             // If it's an offset like +10:00, ZonedDateTime also handles it.
             // Let's assume common ISO patterns.
-            Instant.parse(dateTimeString).atZone(ZoneId.systemDefault()) // Convert to system's default timezone for display
+            Instant.parse(dateTimeString)
+                .atZone(ZoneId.systemDefault()) // Convert to system's default timezone for display
         } catch (e: DateTimeParseException) {
             Log.e("DateTimeParse", "Failed to parse ISO DateTime: $dateTimeString", e)
             // Fallback for formats that might not be strictly Instant.parse compatible without a formatter
@@ -469,7 +577,8 @@ class MainActivity : AppCompatActivity() {
 
     private fun formatTimeForDisplay(zonedDateTime: ZonedDateTime?): String {
         if (zonedDateTime == null) return "--:--"
-        val formatter = DateTimeFormatter.ofPattern("h:mm a", Locale.getDefault()) // e.g., "10:44 AM"
+        val formatter =
+            DateTimeFormatter.ofPattern("h:mm a", Locale.getDefault()) // e.g., "10:44 AM"
         return zonedDateTime.format(formatter)
     }
 
@@ -493,12 +602,15 @@ class MainActivity : AppCompatActivity() {
             val overallDestination = lastLeg.destination
 
             val departureTimePlannedZoned = parseIsoDateTime(overallOrigin?.departureTimePlanned)
-            val departureTimeEstimatedZoned = parseIsoDateTime(overallOrigin?.departureTimeEstimated)
+            val departureTimeEstimatedZoned =
+                parseIsoDateTime(overallOrigin?.departureTimeEstimated)
             val arrivalTimePlannedZoned = parseIsoDateTime(overallDestination?.arrivalTimePlanned)
-            val arrivalTimeEstimatedZoned = parseIsoDateTime(overallDestination?.arrivalTimeEstimated)
+            val arrivalTimeEstimatedZoned =
+                parseIsoDateTime(overallDestination?.arrivalTimeEstimated)
 
             // Use estimated if available, otherwise planned, for display times
-            val displayDepartureTime = departureTimeEstimatedZoned ?: departureTimePlannedZoned
+            val displayDepartureTime: ZonedDateTime? = departureTimeEstimatedZoned
+                ?: departureTimePlannedZoned // This is for the first leg
             val displayArrivalTime = arrivalTimeEstimatedZoned ?: arrivalTimePlannedZoned
 
             // Overall duration: Sum of leg durations (API provides leg duration in seconds)
@@ -524,7 +636,8 @@ class MainActivity : AppCompatActivity() {
                 }
                 if (modeName != null) {
                     modes.add(modeName)
-                    val currentLegIsPT = leg.transportation?.product?.transportClass !in listOf(100, 99)
+                    val currentLegIsPT =
+                        leg.transportation?.product?.transportClass !in listOf(100, 99)
                     if (currentLegIsPT && previousLegWasPT) {
                         interchanges++
                     }
@@ -538,7 +651,8 @@ class MainActivity : AppCompatActivity() {
             }
             if (interchanges < 0) interchanges = 0 // If only walk, 0 interchanges
 
-            val modesSummary = modes.distinct().joinToString(" \u2022 ") // Use a bullet as separator, show distinct modes
+            val modesSummary = modes.distinct()
+                .joinToString(" \u2022 ") // Use a bullet as separator, show distinct modes
 
             // Departure Status Logic (simplified, focuses on the first leg's departure)
             var departureStatusText = "Scheduled"
@@ -547,7 +661,10 @@ class MainActivity : AppCompatActivity() {
 
             if (firstLeg.isRealtimeControlled == true) {
                 if (departureTimePlannedZoned != null && departureTimeEstimatedZoned != null) {
-                    val delayMinutes = calculateTimeDifferenceInMinutes(departureTimePlannedZoned, departureTimeEstimatedZoned)
+                    val delayMinutes = calculateTimeDifferenceInMinutes(
+                        departureTimePlannedZoned,
+                        departureTimeEstimatedZoned
+                    )
                     if (delayMinutes == 0L) {
                         departureStatusText = "On time"
                     } else if (delayMinutes > 0) {
@@ -558,7 +675,8 @@ class MainActivity : AppCompatActivity() {
                         // Consider if "early" should also set isLate or a different flag
                     }
                 } else {
-                    departureStatusText = "On time" // Assume on time if one of the times is missing but RT is controlled
+                    departureStatusText =
+                        "On time" // Assume on time if one of the times is missing but RT is controlled
                 }
             } else if (firstLeg.origin?.departureTimePlanned != null) { // Not real-time controlled, but has a planned time
                 departureStatusText = "Scheduled" // Or use "Data unavailable" if preferred
@@ -569,7 +687,11 @@ class MainActivity : AppCompatActivity() {
             }
             // Refine based on leg.realtimeStatus if available and more descriptive
             firstLeg.realtimeStatus?.firstOrNull()?.let { rs ->
-                if (rs.equals("MONITORED", ignoreCase = true) && departureStatusText == "Scheduled") {
+                if (rs.equals(
+                        "MONITORED",
+                        ignoreCase = true
+                    ) && departureStatusText == "Scheduled"
+                ) {
                     // If monitored and still scheduled, could mean on time or just that it is being watched
                 } else if (!rs.equals("MONITORED", ignoreCase = true)) {
                     // departureStatusText = rs // Could use the direct status if it's more user-friendly
@@ -580,18 +702,20 @@ class MainActivity : AppCompatActivity() {
             val option = DisplayableTripOption(
                 overallDurationInMinutes = totalDurationMinutes,
                 departureTimeFormatted = formatTimeForDisplay(displayDepartureTime),
-                arrivalTimeFormatted = formatTimeForDisplay(displayArrivalTime),
+                arrivalTimeFormatted = formatTimeForDisplay(displayArrivalTime), // displayArrivalTime is for the last leg
                 effectiveOriginName = overallOrigin?.name ?: "Unknown Origin",
                 effectiveDestinationName = overallDestination?.name ?: "Unknown Destination",
                 transportModesSummary = modesSummary.ifEmpty { "N/A" },
                 departureStatus = departureStatusText,
                 isLate = isLate,
                 isRealTimeDataUnavailable = isRealTimeUnavailable,
-                interchanges = interchanges
+                interchanges = interchanges,
+                // --- NEW: Store epoch millis for the first leg's departure ---
+                firstLegDepartureEpochMillis = displayDepartureTime?.toInstant()?.toEpochMilli()
+                    ?: -1L // Store -1 or handle null if departure time is unknown
             )
             displayableOptions.add(option)
         }
         return displayableOptions
     }
-
 } // End of MainActivity

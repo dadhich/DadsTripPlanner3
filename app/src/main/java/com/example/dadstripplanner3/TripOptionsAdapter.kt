@@ -15,16 +15,64 @@ class TripOptionsAdapter(private var tripOptions: List<DisplayableTripOption>) :
         RecyclerView.ViewHolder(binding.root) {
 
         fun bind(tripOption: DisplayableTripOption) {
-            // Map fields from DisplayableTripOption to the TextViews
-            binding.textViewDuration.text = "${tripOption.overallDurationInMinutes} min" // Add "min" suffix
+            // Original overall duration (we might move this or combine it)
+            // binding.textViewDuration.text = "${tripOption.overallDurationInMinutes} min"
+
+            // --- NEW: Calculate and display "Departs in X min" ---
+            val currentTimeMillis = System.currentTimeMillis()
+            val departureTimeMillis = tripOption.firstLegDepartureEpochMillis
+            var departsInText = "-- min" // Default
+
+            if (departureTimeMillis > 0) { // Check if we have a valid departure time
+                val diffMillis = departureTimeMillis - currentTimeMillis
+                if (diffMillis <= 0) {
+                    // If scheduled time has passed or is very close
+                    // We rely on tripOption.departureStatus for "late", "on time" etc.
+                    // "Now" might be confusing if it's "10 min late" but scheduled time passed 10 mins ago.
+                    // Let's prioritize showing the actual status string if it's already past due.
+                    // If it's truly "Now" and status is "On Time", we can show "Now".
+                    if (tripOption.departureStatus.equals("On time", ignoreCase = true) && diffMillis > -60000) { // Within a minute past
+                        departsInText = "Now"
+                    } else if (tripOption.isLate && diffMillis <=0) { // It's late and scheduled time has passed
+                        departsInText = tripOption.departureStatus // e.g., "5 min late"
+                    } else if (diffMillis <= -60000 * 5) { // More than 5 mins past, and not explicitly "late" (edge case)
+                        departsInText = "Departed" // Or use status
+                    }
+                    else {
+                        departsInText = "Now" // Default for very near departure
+                    }
+                } else {
+                    val diffMinutes = java.util.concurrent.TimeUnit.MILLISECONDS.toMinutes(diffMillis)
+                    if (diffMinutes < 1) {
+                        departsInText = "Now" // Or "< 1 min"
+                    } else if (diffMinutes < 60) {
+                        departsInText = "$diffMinutes min"
+                    } else {
+                        val diffHours = java.util.concurrent.TimeUnit.MILLISECONDS.toHours(diffMillis)
+                        val remainingMinutes = diffMinutes % 60
+                        departsInText = "${diffHours}h ${remainingMinutes}m"
+                    }
+                }
+            } else { // firstLegDepartureEpochMillis was -1 or invalid
+                departsInText = "N/A" // Or some other indicator
+            }
+            binding.textViewDuration.text = departsInText // This now shows "Departs in X min"
+
+            // Other bindings
             binding.textViewDepartureTime.text = tripOption.departureTimeFormatted
             binding.textViewDepartureLocation.text = tripOption.effectiveOriginName
+
+            // Combine departureStatus with overall trip duration perhaps?
+            // For now, just the status as calculated.
+            // Example of combining: "${tripOption.departureStatus} • ${tripOption.overallDurationInMinutes} min trip"
             binding.textViewStatus.text = tripOption.departureStatus
+            // + " (${tripOption.overallDurationInMinutes} min total)" // Optionally add total duration here
+
             binding.textViewArrivalTime.text = tripOption.arrivalTimeFormatted
             binding.textViewArrivalLocation.text = tripOption.effectiveDestinationName
             binding.textViewTransportModes.text = tripOption.transportModesSummary
 
-            // Dynamically set status text color based on flags from DisplayableTripOption
+            // ... (status color logic remains the same)
             val context = itemView.context
             when {
                 tripOption.isRealTimeDataUnavailable -> {
@@ -43,9 +91,7 @@ class TripOptionsAdapter(private var tripOptions: List<DisplayableTripOption>) :
                     )
                 }
             }
-
-            // Ensure duration text color is consistent (if it was set specifically before)
-            binding.textViewDuration.setTextColor(
+            binding.textViewDuration.setTextColor( // The "Departs in X min" text
                 ContextCompat.getColor(context, R.color.trip_view_teal_highlight)
             )
         }

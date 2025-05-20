@@ -4,45 +4,64 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="?attr/colorSurface"
-    tools:context=".RouteOptionsActivity">
+    tools:context=".RouteOptionsActivity"
+    android:background="?attr/colorSurface">
 
     <com.google.android.material.appbar.MaterialToolbar
         android:id="@+id/toolbarRouteOptions"
         android:layout_width="0dp"
-        android:layout_height="?attr/actionBarSize"
+        android:layout_height="wrap_content"
+        android:minHeight="?attr/actionBarSize"
         android:background="?attr/colorSurface"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
+        app:titleTextColor="?attr/colorOnSurface"
         app:layout_constraintTop_toTopOf="parent"
-        app:menu="@menu/route_options_menu"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
         app:navigationIcon="@drawable/ic_arrow_back"
         app:navigationIconTint="?attr/colorOnSurface"
-        app:titleTextColor="?attr/colorOnSurface">
+        app:menu="@menu/route_options_menu">
 
-        <TextView
-            android:id="@+id/toolbarTitle"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center"
-            android:text="Source → Destination"
-            android:textColor="?attr/colorOnSurface"
-            android:textSize="18sp"
-            android:textStyle="bold"
-            tools:text="Central Station → Bondi Beach" />
     </com.google.android.material.appbar.MaterialToolbar>
+
+    <TextView
+        android:id="@+id/toolbarTitle"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:text="Source → Destination Very Long Text Example"
+        android:textColor="?attr/colorOnSurface"
+        android:textSize="15sp" android:textStyle="bold"
+        android:gravity="center_horizontal"
+        android:maxLines="2"
+        android:ellipsize="end"
+        android:paddingStart="8dp" android:paddingEnd="8dp"   app:layout_constraintTop_toTopOf="@id/toolbarRouteOptions"
+        app:layout_constraintBottom_toBottomOf="@id/toolbarRouteOptions"
+        app:layout_constraintStart_toEndOf="@id/toolbarNavigationPlaceholder" app:layout_constraintEnd_toStartOf="@id/toolbarMenuPlaceholder" tools:text="My Current Location (Lat: -33.699, Lon: 151.114) → Hornsby Station, Hornsby NSW very long name indeed" />
+
+    <Space
+        android:id="@+id/toolbarNavigationPlaceholder"
+        android:layout_width="?attr/actionBarSize"
+        android:layout_height="1dp"
+        app:layout_constraintStart_toStartOf="@id/toolbarRouteOptions"
+        app:layout_constraintTop_toTopOf="@id/toolbarRouteOptions" />
+
+    <Space
+        android:id="@+id/toolbarMenuPlaceholder"
+        android:layout_width="?attr/actionBarSize" android:layout_height="1dp"
+        app:layout_constraintEnd_toEndOf="@id/toolbarRouteOptions"
+        app:layout_constraintTop_toTopOf="@id/toolbarRouteOptions" />
 
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/recyclerViewTripOptions"
         android:layout_width="0dp"
         android:layout_height="0dp"
-        android:clipToPadding="false"
         android:paddingTop="8dp"
         android:paddingBottom="8dp"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
+        android:clipToPadding="false"
         app:layout_constraintTop_toBottomOf="@id/toolbarRouteOptions"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
         tools:listitem="@layout/list_item_trip_option" />
+
 </androidx.constraintlayout.widget.ConstraintLayout>

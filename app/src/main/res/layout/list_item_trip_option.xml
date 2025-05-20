@@ -8,16 +8,34 @@
     android:paddingEnd="16dp"
     android:paddingTop="12dp"
     android:paddingBottom="12dp"
-    android:background="?attr/colorSurface"> <TextView
-    android:id="@+id/textViewDuration"
-    android:layout_width="wrap_content"
-    android:layout_height="wrap_content"
-    android:textColor="@color/trip_view_teal_highlight" android:textSize="16sp"
-    android:textStyle="bold"
-    app:layout_constraintStart_toStartOf="parent"
-    app:layout_constraintTop_toTopOf="parent"
-    app:layout_constraintBottom_toBottomOf="parent"
-    tools:text="26 mins" />
+    android:background="?attr/colorSurface">
+
+    <TextView
+        android:id="@+id/textViewDuration"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textColor="@color/trip_view_teal_highlight"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintEnd_toStartOf="@id/guideline_start_content"
+        app:layout_constraintHorizontal_bias="0.0"
+        android:layout_marginEnd="8dp"
+        tools:text="22 min" />
+
+    <TextView
+        android:id="@+id/textViewMainTransportInfo"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:textColor="@color/primary_transport_info_color"
+        android:textSize="12sp"
+        android:gravity="start"
+        app:layout_constraintTop_toBottomOf="@id/textViewDuration"
+        app:layout_constraintStart_toStartOf="@id/textViewDuration"
+        app:layout_constraintEnd_toEndOf="@id/textViewDuration"
+        android:layout_marginTop="2dp"
+        tools:text="Bus 575" />
 
     <androidx.constraintlayout.widget.Guideline
         android:id="@+id/guideline_start_content"
@@ -25,62 +43,64 @@
         android:layout_height="wrap_content"
         android:orientation="vertical"
         app:layout_constraintGuide_begin="80dp" /> <TextView
-        android:id="@+id/textViewDepartureTime"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:textColor="@color/text_primary_dark"
-        android:textSize="16sp"
-        android:textStyle="bold"
-        app:layout_constraintStart_toStartOf="@id/guideline_start_content"
-        app:layout_constraintTop_toTopOf="parent"
-        tools:text="10:44 am" />
+    android:id="@+id/textViewDepartureTime"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:textColor="?android:textColorPrimary"
+    android:textSize="16sp"
+    android:textStyle="bold"
+    app:layout_constraintStart_toStartOf="@id/guideline_start_content"
+    app:layout_constraintTop_toTopOf="parent"
+    tools:text="7:09 PM" />
 
     <TextView
         android:id="@+id/textViewDepartureLocation"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:textColor="@color/text_primary_dark"
+        android:textColor="?android:textColorSecondary"
         android:textSize="14sp"
-        android:layout_marginStart="12dp"
+        android:layout_marginStart="8dp"
         app:layout_constraintStart_toEndOf="@id/textViewDepartureTime"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toTopOf="@id/textViewDepartureTime"
         app:layout_constraintBaseline_toBaselineOf="@id/textViewDepartureTime"
         tools:text="Lowe Rd opp James Park" />
 
     <TextView
         android:id="@+id/textViewStatus"
-        android:layout_width="wrap_content"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:textSize="12sp"
-        android:textColor="@color/trip_view_status_on_time"  app:layout_constraintStart_toStartOf="@id/guideline_start_content"
+        android:textColor="@color/text_secondary_dark"
+        app:layout_constraintStart_toStartOf="@id/guideline_start_content"
+        app:layout_constraintEnd_toEndOf="@id/textViewDepartureLocation"
         app:layout_constraintTop_toBottomOf="@id/textViewDepartureTime"
+        app:layout_constraintHorizontal_bias="0.0"
         android:layout_marginTop="2dp"
-        tools:text="On time" />
+        tools:text="7:07 pm, 6 min late" />
+
     <TextView
         android:id="@+id/textViewArrivalTime"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:textColor="@color/text_primary_dark"
+        android:textColor="?android:textColorPrimary"
         android:textSize="16sp"
         android:textStyle="bold"
         app:layout_constraintStart_toStartOf="@id/guideline_start_content"
         app:layout_constraintTop_toBottomOf="@id/textViewStatus"
         android:layout_marginTop="8dp"
-        tools:text="10:53 am" />
+        tools:text="7:23 PM" />
 
     <TextView
         android:id="@+id/textViewArrivalLocation"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:textColor="@color/text_primary_dark"
+        android:textColor="?android:textColorSecondary"
         android:textSize="14sp"
-        android:layout_marginStart="12dp"
+        android:layout_marginStart="8dp"
         app:layout_constraintStart_toEndOf="@id/textViewArrivalTime"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toTopOf="@id/textViewArrivalTime"
         app:layout_constraintBaseline_toBaselineOf="@id/textViewArrivalTime"
-        tools:text="Hornsby Station" />
+        tools:text="Hornsby Station, Stand E" />
 
     <TextView
         android:id="@+id/textViewTransportModes"
@@ -88,10 +108,10 @@
         android:layout_height="wrap_content"
         android:textColor="@color/text_secondary_dark"
         android:textSize="12sp"
-        app:layout_constraintStart_toEndOf="@id/textViewArrivalTime"
-        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="@id/textViewArrivalLocation"
+        app:layout_constraintEnd_toEndOf="@id/textViewArrivalLocation"
         app:layout_constraintTop_toBottomOf="@id/textViewArrivalLocation"
-        android:layout_marginStart="12dp"
         android:layout_marginTop="2dp"
-        tools:text="Train T1, Bus 575" />
+        tools:text="Walk • Bus 575" />
+
 </androidx.constraintlayout.widget.ConstraintLayout>

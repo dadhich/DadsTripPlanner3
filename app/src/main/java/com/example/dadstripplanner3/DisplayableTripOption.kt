@@ -5,15 +5,24 @@ import kotlinx.parcelize.Parcelize
 
 @Parcelize
 data class DisplayableTripOption(
-    val overallDurationInMinutes: Int, // We'll keep this for now, might use it elsewhere or remove later
-    val departureTimeFormatted: String,
-    val arrivalTimeFormatted: String,
-    val effectiveOriginName: String,
-    val effectiveDestinationName: String,
-    val transportModesSummary: String,
-    val departureStatus: String,
-    val isLate: Boolean,
-    val isRealTimeDataUnavailable: Boolean,
-    val interchanges: Int,
-    val firstLegDepartureEpochMillis: Long // NEW FIELD: To store departure time for "departs in" calculation
+    // Overall Journey Info
+    val overallJourneyDepartureTimeFormatted: String,
+    val overallJourneyArrivalTimeFormatted: String,
+    val overallJourneyOriginName: String,
+    val overallJourneyDestinationName: String,
+    val totalTripDurationInMinutes: Int,
+
+    // First Public Transport (PT) Leg Specific Info
+    val firstPTLegDepartureStopName: String?,
+    val firstPTLegEstimatedDepartureTimeFormatted: String?,
+    val firstPTLegScheduledDepartureTimeFormatted: String?,
+    val firstPTLegStatusMessage: String?,
+    val firstPTLegDepartureEpochMillis: Long,
+    val isPTLegLate: Boolean,
+    val isPTLegRealTimeDataUnavailable: Boolean,
+
+    // Summary Info
+    val transportModesSummary: String, // e.g., "Walk • Bus 575 • Train T1"
+    val primaryPublicTransportInfo: String?, // NEW: e.g., "Bus 575" or "Train T1"
+    val interchanges: Int
 ) : Parcelable

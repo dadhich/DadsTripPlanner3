@@ -130,5 +130,72 @@ data class PathDescription(
     // Other fields like coord, skyDirection, cumDistance, cumDuration can be added if needed
 )
 
-// You might also need classes for LegInfoMessage, Fare, etc., if you plan to use that data.
-// For now, this covers the core journey structure.
+
+// --- Data Classes for StopFinder API Response ---
+
+data class StopFinderResponse(
+    @SerializedName("version") val version: String?,
+    @SerializedName("error") val error: ApiErrorResponse?, // Re-use ApiErrorResponse if defined, or define if not
+    @SerializedName("locations") val locations: List<StopFinderLocation>?
+)
+
+data class StopFinderLocation(
+    @SerializedName("id") val id: String?, // Unique ID, can be used in /trip requests [cite: 100, 170, 199, 224]
+    @SerializedName("isGlobalId") val isGlobalId: Boolean? = null,
+    @SerializedName("name") val name: String?, // Long version of the location name, may include suburb [cite: 102, 171, 206, 234]
+    @SerializedName("disassembledName") val disassembledName: String?, // Short version, no suburb [cite: 97, 167, 194, 221]
+    @SerializedName("type") val type: String?, // e.g., "stop", "platform", "poi", "address", "locality", "suburb" [cite: 137, 173, 210, 240]
+    @SerializedName("coord") val coordinates: List<Double>?, // [LATITUDE, LONGITUDE] - as per Swagger for StopFinderLocation and CoordRequestResponseLocation [cite: 96, 193, 220]
+    @SerializedName("parent") val parent: ParentLocation?, // Information about parent (e.g., station for a platform) [cite: 103, 172, 208, 236]
+    @SerializedName("modes") val modes: List<Int>?, // List of transport mode codes that service this stop [cite: 201, 229]
+    @SerializedName("assignedStops") val assignedStops: List<StopFinderAssignedStop>?,
+    @SerializedName("matchQuality") val matchQuality: Int?,
+    @SerializedName("isBest") val isBest: Boolean? = null
+// Add other fields like buildingNumber, streetName from StopFinderLocation in Swagger if needed
+)
+
+// ApiErrorResponse - This might already be defined from your TripResponse structure.
+// If not, or if it's different, define it based on the Swagger.
+// Assuming a simple one for now if not already present for TripResponse.
+// The Swagger has a definition for ApiErrorResponse.
+data class ApiErrorResponse(
+    @SerializedName("message") val message: String?,
+    @SerializedName("versions") val versions: ApiErrorVersions?
+)
+
+data class ApiErrorVersions(
+    @SerializedName("controller") val controller: String?,
+    @SerializedName("interfaceMax") val interfaceMax: String?,
+    @SerializedName("interfaceMin") val interfaceMin: String?
+)
+
+// StopFinderAssignedStop (if you need to dive into this level of detail)
+// Based on Swagger, it's quite similar to StopFinderLocation but with added
+// connectingMode, distance, duration specifically for the assignment.
+data class StopFinderAssignedStop(
+    @SerializedName("id") val id: String?,
+    @SerializedName("name") val name: String?,
+    @SerializedName("disassembledName") val disassembledName: String?,
+    @SerializedName("type") val type: String?,
+    @SerializedName("coord") val coordinates: List<Double>?, // [LATITUDE, LONGITUDE] [cite: 193]
+    @SerializedName("parent") val parent: ParentLocation?,
+    @SerializedName("modes") val modes: List<Int>?,
+    @SerializedName("distance") val distance: Int?, // Distance from the location to which it's assigned [cite: 196]
+    @SerializedName("duration") val duration: Int?, // Duration to reach this stop from assigned location [cite: 197]
+    @SerializedName("connectingMode") val connectingMode: Int?
+)
+
+// Note: The ParentLocation data class was defined in the previous step for TripResponse.
+// Ensure it's compatible or create a distinct version if the structure differs.
+// Assuming the previously defined ParentLocation is suitable:
+// data class ParentLocation(
+//    @SerializedName("id") val id: String?,
+//    @SerializedName("name") val name: String?,
+//    @SerializedName("disassembledName") val disassembledName: String?,
+//    @SerializedName("type") val type: String?,
+//    @SerializedName("parent") val grandParent: ParentLocation?, // For nested parents
+//    @SerializedName("properties") val properties: ParentProperties?
+// )
+// data class ParentProperties(
+//    @SerializedName("stopId") val stopId: String?
+// )

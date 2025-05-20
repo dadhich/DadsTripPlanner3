@@ -33,20 +33,20 @@
         app:layout_constraintTop_toBottomOf="@id/textViewScreenTitle" />
 
     <!-- Destination EditText -->
-    <EditText
-        android:id="@+id/editTextDestination"
+    <AutoCompleteTextView
+        android:id="@+id/autoCompleteTextViewDestination"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:backgroundTint="?attr/colorPrimary"
         android:hint="@string/hint_enter_destination"
         android:inputType="textPostalAddress"
-        android:paddingBottom="16dp"
         android:textColor="?android:textColorPrimary"
         android:textColorHint="?android:textColorSecondary"
-        app:layout_constraintEnd_toEndOf="parent"
+        android:backgroundTint="?attr/colorPrimary"
+        android:paddingBottom="16dp"
+        android:completionThreshold="3" app:layout_constraintTop_toBottomOf="@id/textViewToLabel"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/textViewToLabel" />
+        app:layout_constraintEnd_toEndOf="parent"
+        android:layout_marginTop="8dp"/>
 
     <!-- "From" (Source) Label -->
     <TextView
@@ -56,7 +56,7 @@
         android:text="@string/label_from"
         android:textSize="18sp"
         android:textColor="?android:textColorPrimary"
-        app:layout_constraintTop_toBottomOf="@id/editTextDestination"
+        app:layout_constraintTop_toBottomOf="@id/autoCompleteTextViewDestination"
         app:layout_constraintStart_toStartOf="parent"
         android:layout_marginTop="24dp"/>
 
@@ -88,19 +88,20 @@
 
     </RadioGroup>
 
-    <EditText
-        android:id="@+id/editTextSourceCustom"
+    <AutoCompleteTextView
+        android:id="@+id/autoCompleteTextViewSourceCustom"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
+        android:layout_weight="1"
         android:hint="@string/hint_enter_start_address"
         android:inputType="textPostalAddress"
         android:textColor="?android:textColorPrimary"
         android:textColorHint="?android:textColorSecondary"
         android:backgroundTint="?attr/colorPrimary"
         android:paddingBottom="16dp"
-        android:enabled="false" android:alpha="0.5"    app:layout_constraintTop_toBottomOf="@id/radioGroupSource" app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        android:layout_marginTop="8dp"/>
+        android:enabled="false"
+        android:alpha="0.5"
+        android:completionThreshold="3" app:layout_constraintTop_toBottomOf="@id/radioGroupSource" />
 
     <!-- Next Button -->
     <Button
@@ -108,9 +109,9 @@
         style="@style/AppButton" android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:text="@string/button_next"
-        app:layout_constraintTop_toBottomOf="@id/editTextSourceCustom" app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/autoCompleteTextViewSourceCustom" app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintVertical_bias="1.0" android:layout_marginTop="24dp" android:layout_marginBottom="24dp"/>
+        app:layout_constraintVertical_bias="1.0" android:layout_marginTop="24dp" android:layout_marginBottom="24dp" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

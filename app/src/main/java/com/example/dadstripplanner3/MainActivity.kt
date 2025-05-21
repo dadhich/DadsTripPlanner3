@@ -84,7 +84,6 @@ class MainActivity : AppCompatActivity() {
         const val EXTRA_TRIP_OPTIONS_LIST = "com.example.dadstripplanner3.TRIP_OPTIONS_LIST"
         private const val LOCATION_PERMISSION_REQUEST_CODE = 1001
 
-        // SharedPreferences Keys
         private const val PREFS_NAME = "TripPlannerPrefs"
         private const val KEY_LAST_ORIGIN_DISPLAY = "lastOriginDisplay"
         private const val KEY_LAST_ORIGIN_TYPE = "lastOriginType"
@@ -95,8 +94,8 @@ class MainActivity : AppCompatActivity() {
         private const val KEY_LAST_USE_CURRENT_LOCATION = "lastUseCurrentLocation"
 
         private const val DEFAULT_DESTINATION_ADDRESS = "Hornsby Station, Hornsby"
-        private const val DEFAULT_DESTINATION_ID = "207720" // Global Stop ID for Hornsby Station area
-        private const val DEFAULT_DESTINATION_TYPE = "stop" // Or "any" if using ID that API understands broadly
+        private const val DEFAULT_DESTINATION_ID = "207720"
+        private const val DEFAULT_DESTINATION_TYPE = "stop"
     }
 
     private val locationSettingsLauncher = registerForActivityResult(
@@ -407,10 +406,9 @@ class MainActivity : AppCompatActivity() {
 
 
         if (lastUseCurrentLocation) {
-            binding.radioButtonCurrentLocation.isChecked = true // This will trigger its listener if state changes
-            // Further UI updates for current location are handled in the listener / initializeUIFields's call to fetchOrRequestLocation
+            binding.radioButtonCurrentLocation.isChecked = true
         } else if (!lastOriginDisplay.isNullOrEmpty() && !lastOriginType.isNullOrEmpty() && !lastOriginValue.isNullOrEmpty()) {
-            binding.radioButtonCustomLocation.isChecked = true // This will trigger its listener
+            binding.radioButtonCustomLocation.isChecked = true
             isSettingSourceTextProgrammatically = true
             binding.autoCompleteTextViewSourceCustom.setText(lastOriginDisplay)
             isSettingSourceTextProgrammatically = false
@@ -418,10 +416,10 @@ class MainActivity : AppCompatActivity() {
                 id = lastOriginValue, name = lastOriginDisplay, type = lastOriginType,
                 disassembledName = lastOriginDisplay, coordinates = null, parent = null, modes = null, assignedStops = null, matchQuality = null, isBest = null, isGlobalId = null
             )
-        } else { // Absolute default if nothing valid is saved
+        } else {
             binding.radioButtonCurrentLocation.isChecked = true
         }
-        // Call initializeUIFields to finalize UI state based on radio buttons
+        // Call initializeUIFields to set enabled states and trigger fetch if needed based on radio buttons
         initializeUIFields()
     }
 
@@ -446,12 +444,12 @@ class MainActivity : AppCompatActivity() {
 
 
     private fun initializeUIFields() {
-        // Default destination is set by loadLastSelectionsOrDefaults on first pass.
-        // This function now mostly reacts to radio button state if called after initial load.
+        // Default destination text is set in loadLastSelectionsOrDefaults.
+        // This function primarily handles the origin state based on radio selection.
         if (binding.radioButtonCurrentLocation.isChecked) {
             binding.autoCompleteTextViewSourceCustom.isEnabled = false
             binding.autoCompleteTextViewSourceCustom.alpha = 0.5f
-            if (currentFetchedLocationString == null || currentFetchedLocationString?.contains("Fetching") == false) { // Only set to fetching if not already fetched/actively fetching
+            if (currentFetchedLocationString == null || currentFetchedLocationString?.contains("Fetching") == false) {
                 currentFetchedLocationString = "My Current Location (Fetching...)"
             }
             fetchOrRequestLocation()
@@ -472,46 +470,33 @@ class MainActivity : AppCompatActivity() {
             override fun onResponse(call: Call<StopFinderResponse>, response: Response<StopFinderResponse>) {
                 if (response.isSuccessful) {
                     val stopFinderResponse = response.body()
-                    // Keep existing suggestionItemsMap for lookup, don't clear here, clear before populating
-                    val newSuggestionDisplayNames = mutableListOf<String>()
-                    val newSuggestionItemsMap = mutableMapOf<String, StopFinderLocation>()
-
+                    val currentSuggestionItemsMap = if (fieldType == "destination") suggestionItemsMap else suggestionItemsMap // Use one map for now or separate
+                    currentSuggestionItemsMap.clear() // Clear previous full objects for this fieldType
+                    val suggestionDisplayNames = mutableListOf<String>()
 
                     stopFinderResponse?.locations?.let { locations ->
                         locations.take(10).forEach { location ->
                             val displayName = formatSuggestion(location)
-                            newSuggestionDisplayNames.add(displayName)
-                            newSuggestionItemsMap[displayName] = location // Use a temporary map for new suggestions
+                            suggestionDisplayNames.add(displayName)
+                            currentSuggestionItemsMap[displayName] = location
                         }
                     }
 
                     val adapter = if (fieldType == "destination") destinationAdapter else sourceAdapter
                     val autoCompleteTextView = if (fieldType == "destination") binding.autoCompleteTextViewDestination else binding.autoCompleteTextViewSourceCustom
 
-                    // Update the main map and adapter
-                    if (fieldType == "destination" || fieldType == "source") { // Consolidate map update
-                        suggestionItemsMap.clear()
-                        suggestionItemsMap.putAll(newSuggestionItemsMap)
-                    }
-
                     adapter.clear()
-                    if (newSuggestionDisplayNames.isNotEmpty()) {
-                        adapter.addAll(newSuggestionDisplayNames)
+                    if (suggestionDisplayNames.isNotEmpty()) {
+                        adapter.addAll(suggestionDisplayNames)
                     }
-                    // adapter.notifyDataSetChanged() // Not strictly needed if addAll is used with a fresh adapter list
-                    // AutoCompleteTextView's adapter handles its own refresh.
+                    adapter.notifyDataSetChanged() // Notify adapter after clearing and adding
 
-                    if (autoCompleteTextView.isFocused && newSuggestionDisplayNames.isNotEmpty() && !autoCompleteTextView.isPerformingCompletion) {
-                        // Let the adapter handle showing the dropdown when data changes and it has focus.
-                        // No explicit call to showDropDown() might be needed if adapter.notifyDataSetChanged() works as expected.
-                        // However, for safety, if filtering is not automatic on notifyDataSetChanged:
-                        adapter.filter.filter(autoCompleteTextView.text, null)
-                        // Or, if using a simple list:
-                        // autoCompleteTextView.showDropDown()
-                    } else if (newSuggestionDisplayNames.isEmpty()) {
-                        autoCompleteTextView.dismissDropDown()
+                    if (autoCompleteTextView.isFocused && suggestionDisplayNames.isNotEmpty() && !autoCompleteTextView.isPerformingCompletion) {
+                        autoCompleteTextView.showDropDown()
+                    } else if (suggestionDisplayNames.isEmpty() && autoCompleteTextView.isFocused) {
+                        autoCompleteTextView.dismissDropDown() // Dismiss if no suggestions
                     }
-                    Log.d("Autocomplete", "Suggestions loaded: ${newSuggestionDisplayNames.size} for $fieldType. Adapter count: ${adapter.count}")
+                    Log.d("Autocomplete", "Suggestions loaded: ${suggestionDisplayNames.size} for $fieldType. Adapter count: ${adapter.count}")
                 } else {
                     Log.e("Autocomplete", "API Error for /stop_finder: ${response.code()} - ${response.message()}")
                     val adapter = if (fieldType == "destination") destinationAdapter else sourceAdapter
@@ -519,6 +504,7 @@ class MainActivity : AppCompatActivity() {
                     adapter.notifyDataSetChanged()
                 }
             }
+
             override fun onFailure(call: Call<StopFinderResponse>, t: Throwable) {
                 Log.e("Autocomplete", "Network Failure for /stop_finder: ${t.message}", t)
                 val adapter = if (fieldType == "destination") destinationAdapter else sourceAdapter
@@ -529,9 +515,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun formatSuggestion(location: StopFinderLocation): String {
-        // Ensure location isn't null if this function is called with a potentially null StopFinderLocation
         if (location.name == null && location.disassembledName == null) return "Unknown Suggestion"
-
         val namePart = location.name ?: location.disassembledName ?: "Unknown Location"
         val typePart = location.type?.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }
         var suggestion = namePart
@@ -763,54 +747,94 @@ class MainActivity : AppCompatActivity() {
             var previousLegWasPT = false
             var primaryPTInfoString: String? = null
 
+            val displayableLegsForThisJourney = mutableListOf<DisplayableTripLeg>()
+
             apiJourney.legs.forEach { leg ->
-                val modeName: String?
+                val legOrigin = leg.origin
+                val legDestination = leg.destination
+                val legDepartureTime = parseIsoDateTime(legOrigin?.departureTimeEstimated ?: legOrigin?.departureTimePlanned)
+                val legArrivalTime = parseIsoDateTime(legDestination?.arrivalTimeEstimated ?: legDestination?.arrivalTimePlanned)
+                var legModeName = "Unknown Mode"
+                var legModeEmoji = "❓"
+                var legLineDestination: String? = null
                 var currentLegIsPT = false
                 var ptInfoForThisLeg: String? = null
+                var legRealTimeStatus: String? = "Scheduled"
+                var legIsRealTime = leg.isRealtimeControlled == true
+                var legIsLate = false
 
                 when (leg.transportation?.product?.transportClass) {
                     100, 99 -> {
-                        modeName = if (modesSummaryList.isEmpty() || modesSummaryList.last() != "Walk") "Walk" else null
+                        legModeName = "Walk"
+                        legModeEmoji = "🚶"
+                        if (modesSummaryList.isEmpty() || modesSummaryList.last() != "Walk") modesSummaryList.add("Walk")
                     }
                     5 -> {
                         val routeNumber = leg.transportation.number ?: ""
-                        modeName = "Bus ${routeNumber}".trim()
-                        ptInfoForThisLeg = modeName
+                        legModeName = "Bus ${routeNumber}".trim()
+                        ptInfoForThisLeg = legModeName
+                        legModeEmoji = "🚌"
                         currentLegIsPT = true
                     }
                     1 -> {
                         val routeNumber = leg.transportation.number ?: ""
-                        modeName = "Train ${routeNumber}".trim()
-                        ptInfoForThisLeg = modeName
+                        legModeName = "Train ${routeNumber}".trim()
+                        ptInfoForThisLeg = legModeName
+                        legModeEmoji = "🚆"
                         currentLegIsPT = true
                     }
                     4 -> {
                         val routeNumber = leg.transportation.number ?: ""
-                        modeName = "LR ${routeNumber}".trim()
-                        ptInfoForThisLeg = modeName
+                        legModeName = "LR ${routeNumber}".trim()
+                        ptInfoForThisLeg = legModeName
+                        legModeEmoji = "🚈"
                         currentLegIsPT = true
                     }
                     9 -> {
                         val routeNumber = leg.transportation.number ?: ""
-                        modeName = "Ferry ${routeNumber}".trim()
-                        ptInfoForThisLeg = modeName
+                        legModeName = "Ferry ${routeNumber}".trim()
+                        ptInfoForThisLeg = legModeName
+                        legModeEmoji = "⛴️"
                         currentLegIsPT = true
                     }
                     2 -> {
                         val routeNumber = leg.transportation.number ?: ""
-                        modeName = "Metro ${routeNumber}".trim()
-                        ptInfoForThisLeg = modeName
+                        legModeName = "Metro ${routeNumber}".trim() // Corrected variable name here
+                        ptInfoForThisLeg = legModeName
+                        legModeEmoji = "🚇"
                         currentLegIsPT = true
                     }
                     else -> {
-                        modeName = leg.transportation?.product?.name?.takeIf { it.isNotBlank() }
-                        if (modeName != null) currentLegIsPT = true
+                        legModeName = leg.transportation?.product?.name?.takeIf { it.isNotBlank() } ?: "Service"
+                        ptInfoForThisLeg = legModeName
+                        currentLegIsPT = true
                     }
                 }
 
-                if (modeName != null) {
-                    if (modesSummaryList.isEmpty() || modesSummaryList.last() != modeName || modeName == "Walk") {
-                        modesSummaryList.add(modeName)
+                if (currentLegIsPT) {
+                    legLineDestination = leg.transportation?.lineDestination?.name
+                    if (leg.isRealtimeControlled == true && legDepartureTime != null) {
+                        val legPlannedDepZoned = parseIsoDateTime(legOrigin?.departureTimePlanned)
+                        if (legPlannedDepZoned != null) {
+                            val delayMinutes = calculateTimeDifferenceInMinutes(legPlannedDepZoned, legDepartureTime)
+                            legRealTimeStatus = when {
+                                delayMinutes == 0L -> "On time"
+                                delayMinutes > 0 -> { legIsLate = true; "${formatTimeForDisplay(legPlannedDepZoned)}, $delayMinutes min late" }
+                                else -> "${formatTimeForDisplay(legPlannedDepZoned)}, ${-delayMinutes} min early"
+                            }
+                        } else {
+                            legRealTimeStatus = "Real-time"
+                        }
+                    } else if (legDepartureTime != null) {
+                        legRealTimeStatus = "${formatTimeForDisplay(legDepartureTime)} Scheduled"
+                    } else {
+                        legRealTimeStatus = "Data unavailable"
+                    }
+                }
+
+                if (ptInfoForThisLeg != null) {
+                    if (modesSummaryList.isEmpty() || modesSummaryList.last() != ptInfoForThisLeg) {
+                        modesSummaryList.add(ptInfoForThisLeg)
                     }
                 }
 
@@ -824,7 +848,24 @@ class MainActivity : AppCompatActivity() {
                 } else {
                     previousLegWasPT = false
                 }
+
+                displayableLegsForThisJourney.add(
+                    DisplayableTripLeg(
+                        modeEmoji = legModeEmoji, modeName = legModeName,
+                        durationMinutes = (leg.durationSeconds?.toInt() ?: 0) / 60,
+                        originName = legOrigin?.name ?: "Unknown point",
+                        originTimeFormatted = formatTimeForDisplay(legDepartureTime),
+                        destinationName = legDestination?.name ?: "Unknown point",
+                        destinationTimeFormatted = formatTimeForDisplay(legArrivalTime),
+                        lineDestination = legLineDestination,
+                        stopSequenceCount = leg.stopSequence?.size ?: 0,
+                        realTimeStatus = legRealTimeStatus, isRealTime = legIsRealTime,
+                        distanceMeters = if (legModeName == "Walk") leg.distanceMetres else null,
+                        pathDescriptions = if (legModeName == "Walk") leg.pathDescriptions?.mapNotNull { it.name } else null
+                    )
+                )
             }
+
             if (interchanges < 0) interchanges = 0
             val modesSummary = modesSummaryList.joinToString(" \u2022 ")
 
@@ -901,7 +942,8 @@ class MainActivity : AppCompatActivity() {
                 isPTLegRealTimeDataUnavailable = isPTLegRealTimeDataUnavailable,
                 transportModesSummary = modesSummary.ifEmpty { if (firstPTLegStatusMessage == "Walk only") "Walk" else "N/A" },
                 primaryPublicTransportInfo = primaryPTInfoString,
-                interchanges = interchanges
+                interchanges = interchanges,
+                legs = displayableLegsForThisJourney
             )
             displayableOptions.add(option)
         }

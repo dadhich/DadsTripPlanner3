@@ -8,14 +8,22 @@ import androidx.recyclerview.widget.RecyclerView
 import com.example.dadstripplanner3.databinding.ListItemTripOptionBinding
 import java.util.concurrent.TimeUnit
 
-class TripOptionsAdapter(private var tripOptions: List<DisplayableTripOption>) :
-    RecyclerView.Adapter<TripOptionsAdapter.TripOptionViewHolder>() {
+// Add a click listener parameter to the constructor
+class TripOptionsAdapter(
+    private var tripOptions: List<DisplayableTripOption>,
+    private val onItemClicked: (DisplayableTripOption) -> Unit // Lambda for click events
+) : RecyclerView.Adapter<TripOptionsAdapter.TripOptionViewHolder>() {
 
     inner class TripOptionViewHolder(val binding: ListItemTripOptionBinding) :
         RecyclerView.ViewHolder(binding.root) {
 
         fun bind(tripOption: DisplayableTripOption) {
             val context = itemView.context
+
+            // Set up the click listener for the entire item view
+            itemView.setOnClickListener {
+                onItemClicked(tripOption)
+            }
 
             // Column 1: "Departs in" and Primary PT Info
             val currentTimeMillis = System.currentTimeMillis()
@@ -24,13 +32,13 @@ class TripOptionsAdapter(private var tripOptions: List<DisplayableTripOption>) :
 
             if (departureEpochToUseForDepartsIn > 0) {
                 val diffMillis = departureEpochToUseForDepartsIn - currentTimeMillis
-                if (diffMillis <= -120000 ) { // Departed more than 2 mins ago
+                if (diffMillis <= -120000 ) {
                     departsInText = "Departed"
-                } else if (diffMillis <= 60000) { // Departing now or very soon (within next minute or just passed)
+                } else if (diffMillis <= 60000) {
                     if (tripOption.isPTLegLate && diffMillis <= 0 && tripOption.firstPTLegStatusMessage?.contains("late",ignoreCase = true) == true) {
-                        departsInText = tripOption.firstPTLegStatusMessage.substringAfter(",").trim().substringBefore(" min") + " min" // Show "X min" from "Y, X min late"
+                        departsInText = tripOption.firstPTLegStatusMessage.substringAfter(",").trim().substringBefore(" min") + " min"
                     } else if (tripOption.firstPTLegStatusMessage?.contains("early",ignoreCase = true) == true && diffMillis <=0){
-                        departsInText = "Departed" // If it was early and scheduled time passed
+                        departsInText = "Departed"
                     }
                     else {
                         departsInText = "Now"
@@ -48,11 +56,10 @@ class TripOptionsAdapter(private var tripOptions: List<DisplayableTripOption>) :
                     }
                 }
             } else if (tripOption.firstPTLegStatusMessage == "Walk only") {
-                // For walk-only trips, "Departs in" is from overall journey start (which is also in firstPTLegDepartureEpochMillis for this case)
                 val overallJourneyDepartureMillis = tripOption.firstPTLegDepartureEpochMillis
                 if(overallJourneyDepartureMillis > 0) {
                     val diffMillisOverall = overallJourneyDepartureMillis - currentTimeMillis
-                    if (diffMillisOverall <= 60000) { // Within a minute or past
+                    if (diffMillisOverall <= 60000) {
                         departsInText = "Now"
                     } else {
                         val diffMinutesOverall = TimeUnit.MILLISECONDS.toMinutes(diffMillisOverall)
@@ -81,9 +88,8 @@ class TripOptionsAdapter(private var tripOptions: List<DisplayableTripOption>) :
                 binding.textViewMainTransportInfo.visibility = View.GONE
             }
 
-            // Column 2: PT Departure Stop, Estimated Time, and Status
-            binding.textViewDepartureTime.text = tripOption.firstPTLegEstimatedDepartureTimeFormatted
-            binding.textViewDepartureLocation.text = tripOption.firstPTLegDepartureStopName
+            binding.textViewDepartureTime.text = tripOption.firstPTLegEstimatedDepartureTimeFormatted ?: tripOption.overallJourneyDepartureTimeFormatted
+            binding.textViewDepartureLocation.text = tripOption.firstPTLegDepartureStopName ?: tripOption.overallJourneyOriginName
             binding.textViewStatus.text = tripOption.firstPTLegStatusMessage
 
             when {
@@ -93,16 +99,14 @@ class TripOptionsAdapter(private var tripOptions: List<DisplayableTripOption>) :
                 tripOption.isPTLegLate -> {
                     binding.textViewStatus.setTextColor(ContextCompat.getColor(context, R.color.trip_view_status_late))
                 }
-                // Add a condition for "early" if you want a different color, e.g., another shade of green or blue
                 tripOption.firstPTLegStatusMessage?.contains("early", ignoreCase = true) == true -> {
-                    binding.textViewStatus.setTextColor(ContextCompat.getColor(context, R.color.trip_view_status_on_time)) // Or a specific "early" color
+                    binding.textViewStatus.setTextColor(ContextCompat.getColor(context, R.color.trip_view_status_on_time))
                 }
-                else -> { // On time or default
+                else -> {
                     binding.textViewStatus.setTextColor(ContextCompat.getColor(context, R.color.trip_view_status_on_time))
                 }
             }
 
-            // Column 3: Final Arrival and Modes Summary
             binding.textViewArrivalTime.text = tripOption.overallJourneyArrivalTimeFormatted
             binding.textViewArrivalLocation.text = tripOption.overallJourneyDestinationName
             binding.textViewTransportModes.text = tripOption.transportModesSummary
@@ -123,6 +127,6 @@ class TripOptionsAdapter(private var tripOptions: List<DisplayableTripOption>) :
 
     fun updateData(newTripOptions: List<DisplayableTripOption>) {
         this.tripOptions = newTripOptions
-        notifyDataSetChanged() // For simplicity, consider DiffUtil for better performance later
+        notifyDataSetChanged()
     }
 }

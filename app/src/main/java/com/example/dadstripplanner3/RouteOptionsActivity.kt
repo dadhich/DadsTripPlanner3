@@ -1,5 +1,6 @@
 package com.example.dadstripplanner3
 
+import android.content.Intent // Import Intent
 import android.os.Build
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
@@ -7,8 +8,6 @@ import android.util.Log
 import android.view.View
 import android.widget.Toast
 import androidx.recyclerview.widget.LinearLayoutManager
-// Import DividerItemDecoration if you plan to use it
-// import androidx.recyclerview.widget.DividerItemDecoration
 import com.example.dadstripplanner3.databinding.ActivityRouteOptionsBinding
 
 class RouteOptionsActivity : AppCompatActivity() {
@@ -17,16 +16,18 @@ class RouteOptionsActivity : AppCompatActivity() {
     private lateinit var tripOptionsAdapter: TripOptionsAdapter
     private var displayableTripOptions: List<DisplayableTripOption> = emptyList()
 
+    companion object {
+        const val EXTRA_SELECTED_TRIP_OPTION = "com.example.dadstripplanner3.SELECTED_TRIP_OPTION"
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityRouteOptionsBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        // --- Retrieve data from Intent ---
         val sourceLocation = intent.getStringExtra(MainActivity.EXTRA_SOURCE_LOCATION) ?: "Origin"
         val destinationLocation = intent.getStringExtra(MainActivity.EXTRA_DESTINATION_LOCATION) ?: "Destination"
 
-        // Retrieve the list of DisplayableTripOption objects
         displayableTripOptions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             intent.getParcelableArrayListExtra(MainActivity.EXTRA_TRIP_OPTIONS_LIST, DisplayableTripOption::class.java)
         } else {
@@ -34,17 +35,10 @@ class RouteOptionsActivity : AppCompatActivity() {
             intent.getParcelableArrayListExtra(MainActivity.EXTRA_TRIP_OPTIONS_LIST)
         } ?: emptyList()
 
-
-        // --- Setup Toolbar ---
-        // If you are using a custom TextView for the title as per the latest activity_route_options.xml
         binding.toolbarTitle.text = "$sourceLocation → $destinationLocation"
-
-        // Handle navigation icon click (back arrow)
         binding.toolbarRouteOptions.setNavigationOnClickListener {
-            finish() // Closes this activity and returns to the previous one
+            finish()
         }
-
-        // Handle menu item clicks (placeholders for now)
         binding.toolbarRouteOptions.setOnMenuItemClickListener { menuItem ->
             when (menuItem.itemId) {
                 R.id.action_filter_options -> {
@@ -59,26 +53,22 @@ class RouteOptionsActivity : AppCompatActivity() {
             }
         }
 
-
-        // --- Setup RecyclerView ---
         if (displayableTripOptions.isNotEmpty()) {
-            tripOptionsAdapter = TripOptionsAdapter(displayableTripOptions)
+            // Instantiate adapter with the click listener
+            tripOptionsAdapter = TripOptionsAdapter(displayableTripOptions) { selectedTrip ->
+                // Handle item click: Navigate to TripDetailsActivity
+                val intent = Intent(this, TripDetailsActivity::class.java)
+                intent.putExtra(EXTRA_SELECTED_TRIP_OPTION, selectedTrip) // Pass the whole DisplayableTripOption
+                startActivity(intent)
+            }
+
             binding.recyclerViewTripOptions.layoutManager = LinearLayoutManager(this)
             binding.recyclerViewTripOptions.adapter = tripOptionsAdapter
             binding.recyclerViewTripOptions.visibility = View.VISIBLE
-            // If you have a "no trips found" TextView, hide it here:
-            // binding.textViewNoTripsFound.visibility = View.GONE
         } else {
-            // Handle case where no trip options were passed or an error occurred
             Log.w("RouteOptions", "No displayable trip options received.")
             Toast.makeText(this, "No trip options to display.", Toast.LENGTH_LONG).show()
             binding.recyclerViewTripOptions.visibility = View.GONE
-            // If you have a "no trips found" TextView, show it here:
-            // binding.textViewNoTripsFound.visibility = View.VISIBLE
         }
-
-        // Optional: Add item decoration for dividers
-        // val dividerItemDecoration = DividerItemDecoration(this, LinearLayoutManager.VERTICAL)
-        // binding.recyclerViewTripOptions.addItemDecoration(dividerItemDecoration)
     }
 }

@@ -1,4 +1,4 @@
-package com.example.dadstripplanner3
+package com.example.dadstripplanner3 // Your package name
 
 import android.os.Parcelable
 import kotlinx.parcelize.Parcelize
@@ -22,7 +22,11 @@ data class DisplayableTripOption(
     val isPTLegRealTimeDataUnavailable: Boolean,
 
     // Summary Info
-    val transportModesSummary: String, // e.g., "Walk • Bus 575 • Train T1"
-    val primaryPublicTransportInfo: String?, // NEW: e.g., "Bus 575" or "Train T1"
-    val interchanges: Int
+    val transportModesSummary: String,
+    val primaryPublicTransportInfo: String?,
+    val interchanges: Int,
+
+    // --- NEW FIELD for detailed legs ---
+    val legs: List<DisplayableTripLeg> // List of detailed, displayable legs for this trip option
+
 ) : Parcelable

@@ -2,12 +2,14 @@
 <androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/mainLayout"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:focusable="true"
+    android:focusableInTouchMode="true"
     android:padding="24dp"
     tools:context=".MainActivity">
 
-    <!-- Screen Title -->
     <TextView
         android:id="@+id/textViewScreenTitle"
         android:layout_width="wrap_content"
@@ -20,7 +22,6 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
-    <!-- "I want to go to" (Destination) Label -->
     <TextView
         android:id="@+id/textViewToLabel"
         android:layout_width="wrap_content"
@@ -32,59 +33,59 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/textViewScreenTitle" />
 
-    <!-- Destination EditText -->
     <AutoCompleteTextView
         android:id="@+id/autoCompleteTextViewDestination"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:backgroundTint="?attr/colorPrimary"
+        android:completionThreshold="3"
         android:hint="@string/hint_enter_destination"
         android:inputType="textPostalAddress"
+        android:paddingBottom="16dp"
         android:textColor="?android:textColorPrimary"
         android:textColorHint="?android:textColorSecondary"
-        android:backgroundTint="?attr/colorPrimary"
-        android:paddingBottom="16dp"
-        android:completionThreshold="3" app:layout_constraintTop_toBottomOf="@id/textViewToLabel"
-        app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        android:layout_marginTop="8dp"/>
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/textViewToLabel" />
 
-    <!-- "From" (Source) Label -->
     <TextView
         android:id="@+id/textViewFromLabel"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:layout_marginTop="24dp"
         android:text="@string/label_from"
-        android:textSize="18sp"
         android:textColor="?android:textColorPrimary"
-        app:layout_constraintTop_toBottomOf="@id/autoCompleteTextViewDestination"
+        android:textSize="18sp"
         app:layout_constraintStart_toStartOf="parent"
-        android:layout_marginTop="24dp"/>
+        app:layout_constraintTop_toBottomOf="@id/autoCompleteTextViewDestination" />
 
-    <!-- RadioGroup for Source Options -->
     <RadioGroup
         android:id="@+id/radioGroupSource"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:orientation="vertical" app:layout_constraintTop_toBottomOf="@id/textViewFromLabel"
-        app:layout_constraintStart_toStartOf="parent"
+        android:layout_marginTop="8dp"
+        android:orientation="vertical"
         app:layout_constraintEnd_toEndOf="parent"
-        android:layout_marginTop="8dp">
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/textViewFromLabel">
 
         <RadioButton
             android:id="@+id/radioButtonCurrentLocation"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/radio_button_current_location"
-            android:textColor="?android:textColorPrimary"
             android:buttonTint="?attr/colorPrimary"
-            android:checked="true"/>
+            android:checked="true"
+            android:text="@string/radio_button_current_location"
+            android:textColor="?android:textColorPrimary" />
 
         <RadioButton
             android:id="@+id/radioButtonCustomLocation"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/radio_button_custom_location_label" android:textColor="?android:textColorPrimary"
-            android:buttonTint="?attr/colorPrimary"/>
+            android:buttonTint="?attr/colorPrimary"
+            android:text="@string/radio_button_custom_location_label"
+            android:textColor="?android:textColorPrimary" />
 
     </RadioGroup>
 
@@ -92,26 +93,33 @@
         android:id="@+id/autoCompleteTextViewSourceCustom"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
         android:layout_weight="1"
+        android:alpha="0.5"
+        android:backgroundTint="?attr/colorPrimary"
+        android:completionThreshold="3"
+        android:enabled="false"
         android:hint="@string/hint_enter_start_address"
         android:inputType="textPostalAddress"
+        android:paddingBottom="16dp"
         android:textColor="?android:textColorPrimary"
         android:textColorHint="?android:textColorSecondary"
-        android:backgroundTint="?attr/colorPrimary"
-        android:paddingBottom="16dp"
-        android:enabled="false"
-        android:alpha="0.5"
-        android:completionThreshold="3" app:layout_constraintTop_toBottomOf="@id/radioGroupSource" />
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/radioGroupSource" />
 
-    <!-- Next Button -->
     <Button
         android:id="@+id/buttonNext"
-        style="@style/AppButton" android:layout_width="0dp"
+        style="@style/AppButton"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
+        android:layout_marginTop="24dp"
+        android:layout_marginBottom="24dp"
         android:text="@string/button_next"
-        app:layout_constraintTop_toBottomOf="@id/autoCompleteTextViewSourceCustom" app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintVertical_bias="1.0" android:layout_marginTop="24dp" android:layout_marginBottom="24dp" />
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/autoCompleteTextViewSourceCustom"
+        app:layout_constraintVertical_bias="1.0" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

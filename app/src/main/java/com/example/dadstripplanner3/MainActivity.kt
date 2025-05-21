@@ -27,6 +27,7 @@ import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.ViewModelProvider
 import com.example.dadstripplanner3.databinding.ActivityMainBinding
 import com.google.android.gms.common.api.ResolvableApiException
 import com.google.android.gms.location.FusedLocationProviderClient
@@ -46,10 +47,12 @@ import java.util.Locale
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
-    private val viewModel: MainViewModel by viewModels()
+    private val viewModel: MainViewModel by viewModels {
+        MainViewModelFactory(application, TripRepository(applicationContext, ApiClient.instance))
+    }
 
     private lateinit var fusedLocationClient: FusedLocationProviderClient
-    private lateinit var sharedPreferences: SharedPreferences
+    // SharedPreferences interaction will be via ViewModel -> Repository
 
     private var locationCallback: LocationCallback? = null
     private var requestingLocationUpdates = false
@@ -60,31 +63,15 @@ class MainActivity : AppCompatActivity() {
     private var isSettingDestinationTextProgrammatically = false
     private var isSettingSourceTextProgrammatically = false
 
-    // Store user's explicitly selected date and time
-    private val userSelectedCalendar = Calendar.getInstance()
-    private var isUserDateTimeExplicitlySet = false // True if user picked a date/time
+    private val userSelectedDateTimeCalendar = Calendar.getInstance()
+    private var isUserDateTimeExplicitlySet = false
 
     companion object {
         const val EXTRA_SOURCE_LOCATION = "com.example.dadstripplanner3.SOURCE_LOCATION"
         const val EXTRA_DESTINATION_LOCATION = "com.example.dadstripplanner3.DESTINATION_LOCATION"
         const val EXTRA_TRIP_OPTIONS_LIST = "com.example.dadstripplanner3.TRIP_OPTIONS_LIST"
         private const val LOCATION_PERMISSION_REQUEST_CODE = 1001
-
-        private const val PREFS_NAME = "TripPlannerPrefs"
-        private const val KEY_LAST_ORIGIN_DISPLAY = "lastOriginDisplay"
-        private const val KEY_LAST_ORIGIN_TYPE = "lastOriginType"
-        private const val KEY_LAST_ORIGIN_VALUE = "lastOriginValue"
-        private const val KEY_LAST_DEST_DISPLAY = "lastDestDisplay"
-        private const val KEY_LAST_DEST_TYPE = "lastDestType"
-        private const val KEY_LAST_DEST_VALUE = "lastDestValue"
-        private const val KEY_LAST_USE_CURRENT_LOCATION = "lastUseCurrentLocation"
-        private const val KEY_LAST_SELECTED_DATE_MILLIS = "lastSelectedDateMillis" // Stores userSelectedCalendar.timeInMillis
-        private const val KEY_IS_DATETIME_MANUALLY_SET = "isDateTimeManuallySet" // Tracks if user explicitly set it
-        private const val KEY_LAST_SELECTED_TIME_TYPE = "lastSelectedTimeType" // "dep" or "arr"
-
-        private const val DEFAULT_DESTINATION_ADDRESS = "Hornsby Station, Hornsby"
-        private const val DEFAULT_DESTINATION_ID = "207720"
-        private const val DEFAULT_DESTINATION_TYPE = "stop"
+        // SharedPreferences Keys moved to TripRepository
     }
 
     private val locationSettingsLauncher = registerForActivityResult(
@@ -106,12 +93,12 @@ class MainActivity : AppCompatActivity() {
         binding.root.isFocusableInTouchMode = true
 
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
-        sharedPreferences = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        // SharedPreferences initialization is handled by Repository
 
         setupAutocompleteAdapters()
         setupUIObservers()
         setupListeners()
-        loadLastSelectionsOrDefaults()
+        viewModel.loadLastTripPreferences() // Ask ViewModel to load
     }
 
     override fun onPause() {
@@ -128,6 +115,52 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupUIObservers() {
+        viewModel.lastQueryPreferences.observe(this) { prefs ->
+            prefs?.let {
+                isSettingDestinationTextProgrammatically = true
+                binding.autoCompleteTextViewDestination.setText(it.destDisplay ?: viewModel.defaultDestinationAddress)
+                isSettingDestinationTextProgrammatically = false
+                if (!it.destDisplay.isNullOrEmpty() && !it.destType.isNullOrEmpty() && !it.destValue.isNullOrEmpty()) {
+                    viewModel.setSelectedDestination(StopFinderLocation(
+                        id = it.destValue, name = it.destDisplay, type = it.destType,
+                        disassembledName = it.destDisplay, coordinates = null, parent = null, modes = null, assignedStops = null, matchQuality = null, isBest = null, isGlobalId = null
+                    ))
+                } else {
+                    viewModel.setSelectedDestination(StopFinderLocation(
+                        id = viewModel.defaultDestinationId, name = viewModel.defaultDestinationAddress, type = viewModel.defaultDestinationType,
+                        disassembledName = viewModel.defaultDestinationAddress, coordinates = null, parent = null, modes = null, assignedStops = null, matchQuality = null, isBest = null, isGlobalId = null
+                    ))
+                }
+
+                if (it.useCurrentLocation) {
+                    binding.radioButtonCurrentLocation.isChecked = true
+                } else if (!it.originDisplay.isNullOrEmpty() && !it.originType.isNullOrEmpty() && !it.originValue.isNullOrEmpty()) {
+                    binding.radioButtonCustomLocation.isChecked = true
+                    isSettingSourceTextProgrammatically = true
+                    binding.autoCompleteTextViewSourceCustom.setText(it.originDisplay)
+                    isSettingSourceTextProgrammatically = false
+                    viewModel.setSelectedOrigin(StopFinderLocation(
+                        id = it.originValue, name = it.originDisplay, type = it.originType,
+                        disassembledName = it.originDisplay, coordinates = null, parent = null, modes = null, assignedStops = null, matchQuality = null, isBest = null, isGlobalId = null
+                    ))
+                } else {
+                    binding.radioButtonCurrentLocation.isChecked = true
+                }
+
+                isUserDateTimeExplicitlySet = it.isDateTimeManuallySet
+                if (isUserDateTimeExplicitlySet && it.selectedTimeMillis != -1L) {
+                    userSelectedDateTimeCalendar.timeInMillis = it.selectedTimeMillis
+                } else {
+                    userSelectedDateTimeCalendar.timeInMillis = System.currentTimeMillis()
+                    isUserDateTimeExplicitlySet = false
+                }
+                viewModel.updateSelectedDateTime(userSelectedDateTimeCalendar)
+                viewModel.updateTripTimeType(it.selectedTimeType)
+
+                initializeUIFields()
+            }
+        }
+
         viewModel.destinationSuggestions.observe(this) { suggestions ->
             destinationAdapter.clear()
             if (suggestions.isNotEmpty()) { destinationAdapter.addAll(suggestions) }
@@ -170,14 +203,12 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // Observe ViewModel changes for selected date/time to update UI
-        // This is primarily for initial load from ViewModel or if ViewModel logic changes it
         viewModel.selectedDateTimeCalendar.observe(this) { calendar ->
-            userSelectedCalendar.timeInMillis = calendar.timeInMillis // Sync local calendar with ViewModel
+            userSelectedDateTimeCalendar.timeInMillis = calendar.timeInMillis
             updateSelectedDateTimeDisplay()
         }
         viewModel.isUserDateTimeManuallySet.observe(this) { isSet ->
-            isUserDateTimeExplicitlySet = isSet // Sync local flag with ViewModel
+            isUserDateTimeExplicitlySet = isSet
             updateSelectedDateTimeDisplay()
         }
         viewModel.tripTimeType.observe(this) { type ->
@@ -270,180 +301,98 @@ class MainActivity : AppCompatActivity() {
 
         binding.radioGroupTripTimeType.setOnCheckedChangeListener { _, checkedId ->
             val type = if (checkedId == R.id.radioButtonDepartAt) "dep" else "arr"
-            viewModel.updateTripTimeType(type) // Update ViewModel
-            // If user interacts with these, we consider date/time manually set if a date was already picked.
-            // If not, "Now" still applies until they pick a date/time.
-            // The display update is handled by the ViewModel observer.
-            if (isUserDateTimeExplicitlySet) { // Update display only if they had already set a custom time
-                updateSelectedDateTimeDisplay()
+            viewModel.updateTripTimeType(type)
+            // If user changes Depart/Arrive and a custom date/time was ALREADY set by picker, make it stick
+            if (isUserDateTimeExplicitlySet) {
+                viewModel.updateSelectedDateTime(userSelectedDateTimeCalendar) // This re-affirms manual set
             }
+            // Display update will be handled by ViewModel observer
         }
 
         binding.buttonNext.setOnClickListener {
             if (binding.radioButtonCurrentLocation.isChecked) {
-                if (!isLocationPermissionGranted()) {
-                    Toast.makeText(this, "Location permission needed.", Toast.LENGTH_LONG).show()
-                    requestLocationPermission(); return@setOnClickListener
-                }
-                if (!isLocationServicesEnabled()) {
-                    Toast.makeText(this, "Please turn on Location Services.", Toast.LENGTH_LONG).show()
-                    promptToEnableLocationServices(); return@setOnClickListener
-                }
-                if (viewModel.currentLocationData.value == null) {
-                    Toast.makeText(this, "Current location still fetching or unavailable.", Toast.LENGTH_LONG).show()
-                    fetchOrRequestLocation(); return@setOnClickListener
-                }
+                if (!isLocationPermissionGranted()) { Toast.makeText(this, "Location permission needed.", Toast.LENGTH_LONG).show(); requestLocationPermission(); return@setOnClickListener }
+                if (!isLocationServicesEnabled()) { Toast.makeText(this, "Please turn on Location Services.", Toast.LENGTH_LONG).show(); promptToEnableLocationServices(); return@setOnClickListener }
+                if (viewModel.currentLocationData.value == null) { Toast.makeText(this, "Current location still fetching or unavailable.", Toast.LENGTH_LONG).show(); fetchOrRequestLocation(); return@setOnClickListener }
             }
 
             val customOriginInputText = binding.autoCompleteTextViewSourceCustom.text.toString().trim()
             val destinationInputText = binding.autoCompleteTextViewDestination.text.toString().trim()
-
             val isCurrentLocOrigin = binding.radioButtonCurrentLocation.isChecked
-            var originDisplayForSave: String
-            var originTypeForSave: String
-            var originValueForSave: String
+
+            // Determine final resolved parameters for the API call and for saving
+            var originDisplay: String
+            var originType: String
+            var originValue: String
 
             if (isCurrentLocOrigin) {
-                originDisplayForSave = viewModel.currentLocationDisplayString.value ?: "My Current Location"
+                originDisplay = viewModel.currentLocationDisplayString.value ?: "My Current Location"
                 viewModel.currentLocationData.value?.let { loc ->
-                    originTypeForSave = "coord"
-                    originValueForSave = "${loc.longitude}:${loc.latitude}:EPSG:4326"
+                    originType = "coord"
+                    originValue = "${loc.longitude}:${loc.latitude}:EPSG:4326"
                 } ?: return@setOnClickListener
             } else {
-                originDisplayForSave = customOriginInputText
+                originDisplay = customOriginInputText
                 val selectedOrigin = viewModel.selectedOriginFromAutocomplete.value
-                if (selectedOrigin != null && (selectedOrigin.name == originDisplayForSave || selectedOrigin.disassembledName == originDisplayForSave || viewModel.formatSuggestion(selectedOrigin) == originDisplayForSave) && selectedOrigin.id != null && selectedOrigin.type != null) {
-                    originTypeForSave = selectedOrigin.type!!
-                    originValueForSave = selectedOrigin.id!!
+                if (selectedOrigin != null && (selectedOrigin.name == originDisplay || selectedOrigin.disassembledName == originDisplay || viewModel.formatSuggestion(selectedOrigin) == originDisplay) && selectedOrigin.id != null && selectedOrigin.type != null) {
+                    originType = selectedOrigin.type!!
+                    originValue = selectedOrigin.id!!
                 } else {
-                    originTypeForSave = "any"
-                    originValueForSave = originDisplayForSave
+                    originType = "any"
+                    originValue = originDisplay
                 }
             }
 
-            val destDisplayForSave = destinationInputText
-            var destTypeForSave: String
-            var destValueForSave: String
+            var destDisplay: String = destinationInputText
+            var destType: String
+            var destValue: String
             val selectedDest = viewModel.selectedDestinationFromAutocomplete.value
 
-            if (selectedDest != null && (selectedDest.name == destDisplayForSave || selectedDest.disassembledName == destDisplayForSave || viewModel.formatSuggestion(selectedDest) == destDisplayForSave) && selectedDest.id != null && selectedDest.type != null) {
-                destTypeForSave = selectedDest.type!!
-                destValueForSave = selectedDest.id!!
+            if (selectedDest != null && (selectedDest.name == destDisplay || selectedDest.disassembledName == destDisplay || viewModel.formatSuggestion(selectedDest) == destDisplay) && selectedDest.id != null && selectedDest.type != null) {
+                destType = selectedDest.type!!
+                destValue = selectedDest.id!!
             } else {
-                if (destDisplayForSave.equals(viewModel.defaultDestinationAddress, ignoreCase = true) && selectedDest == null) {
-                    destTypeForSave = viewModel.defaultDestinationType
-                    destValueForSave = viewModel.defaultDestinationId
+                if (destDisplay.equals(viewModel.defaultDestinationAddress, ignoreCase = true) && selectedDest == null) {
+                    destType = viewModel.defaultDestinationType
+                    destValue = viewModel.defaultDestinationId
                 } else {
-                    destTypeForSave = "any"
-                    destValueForSave = destDisplayForSave
+                    destType = "any"
+                    destValue = destDisplay
                 }
             }
 
-            if (originValueForSave.isEmpty() && !isCurrentLocOrigin) { Toast.makeText(this, "Please enter a source address.", Toast.LENGTH_SHORT).show(); return@setOnClickListener }
-            if (destValueForSave.isEmpty()) { Toast.makeText(this, "Please enter a destination address.", Toast.LENGTH_SHORT).show(); return@setOnClickListener }
+            if (originValue.isEmpty() && !isCurrentLocOrigin) { Toast.makeText(this, "Please enter a source address.", Toast.LENGTH_SHORT).show(); binding.autoCompleteTextViewSourceCustom.error = "Source cannot be empty"; return@setOnClickListener }
+            if (destValue.isEmpty()) { Toast.makeText(this, "Please enter a destination address.", Toast.LENGTH_SHORT).show(); binding.autoCompleteTextViewDestination.error = "Destination cannot be empty"; return@setOnClickListener }
 
-            val calendarToUse = if (isUserDateTimeExplicitlySet) userSelectedCalendar else Calendar.getInstance()
+            val calendarToUse = if (isUserDateTimeExplicitlySet) userSelectedDateTimeCalendar else Calendar.getInstance()
             val dateFormat = SimpleDateFormat("yyyyMMdd", Locale.getDefault())
             val timeFormat = SimpleDateFormat("HHmm", Locale.getDefault())
+            val depArrMacro = if (binding.radioButtonDepartAt.isChecked) "dep" else "arr"
 
             viewModel.onPlanTripClicked(
-                isCurrentLocationOrigin = isCurrentLocOrigin,
-                customOriginText = customOriginInputText,
-                destinationText = destinationInputText,
-                originDisplayForSave = originDisplayForSave,
-                originTypeForSave = originTypeForSave,
-                originValueForSave = originValueForSave,
-                destDisplayForSave = destDisplayForSave,
-                destTypeForSave = destTypeForSave,
-                destValueForSave = destValueForSave,
+                originDisplayForSave = originDisplay,
+                originTypeForSave = originType,
+                originValueForSave = originValue,
+                destDisplayForSave = destDisplay,
+                destTypeForSave = destType,
+                destValueForSave = destValue,
+                useCurrentLocationForSave = isCurrentLocOrigin,
                 tripDate = dateFormat.format(calendarToUse.time),
                 tripTime = timeFormat.format(calendarToUse.time),
-                depArrMacro = if (binding.radioButtonDepartAt.isChecked) "dep" else "arr"
-            )
-
-            saveLastSelections(
-                originDisplay = originDisplayForSave, originType = originTypeForSave, originValue = originValueForSave,
-                destDisplay = destDisplayForSave, destType = destTypeForSave, destValue = destValueForSave,
-                useCurrentLocation = isCurrentLocOrigin,
-                // Save the explicitly set time, or -1 if "Now (Default)" was used
-                selectedMillis = if (isUserDateTimeExplicitlySet) userSelectedCalendar.timeInMillis else -1L,
-                selectedTimeType = if (binding.radioButtonDepartAt.isChecked) "dep" else "arr"
+                depArrMacro = depArrMacro
             )
         }
     }
+
 
     private fun loadLastSelectionsOrDefaults() {
-        val lastUseCurrentLocation = sharedPreferences.getBoolean(KEY_LAST_USE_CURRENT_LOCATION, true)
-        val lastOriginDisplay = sharedPreferences.getString(KEY_LAST_ORIGIN_DISPLAY, null)
-        val lastOriginType = sharedPreferences.getString(KEY_LAST_ORIGIN_TYPE, null)
-        val lastOriginValue = sharedPreferences.getString(KEY_LAST_ORIGIN_VALUE, null)
-
-        val lastDestDisplay = sharedPreferences.getString(KEY_LAST_DEST_DISPLAY, viewModel.defaultDestinationAddress)
-        val lastDestType = sharedPreferences.getString(KEY_LAST_DEST_TYPE, viewModel.defaultDestinationType)
-        val lastDestValue = sharedPreferences.getString(KEY_LAST_DEST_VALUE, viewModel.defaultDestinationId)
-
-        val lastSelectedTimeMillis = sharedPreferences.getLong(KEY_LAST_SELECTED_DATE_MILLIS, -1L)
-        val lastSelectedTimeType = sharedPreferences.getString(KEY_LAST_SELECTED_TIME_TYPE, "dep") ?: "dep"
-
-        isSettingDestinationTextProgrammatically = true
-        binding.autoCompleteTextViewDestination.setText(lastDestDisplay)
-        isSettingDestinationTextProgrammatically = false
-        if (!lastDestDisplay.isNullOrEmpty() && !lastDestType.isNullOrEmpty() && !lastDestValue.isNullOrEmpty()) {
-            viewModel.setSelectedDestination(StopFinderLocation(
-                id = lastDestValue, name = lastDestDisplay, type = lastDestType,
-                disassembledName = lastDestDisplay, coordinates = null, parent = null, modes = null, assignedStops = null, matchQuality = null, isBest = null, isGlobalId = null
-            ))
-        }
-
-        if (lastUseCurrentLocation) {
-            binding.radioButtonCurrentLocation.isChecked = true
-        } else if (!lastOriginDisplay.isNullOrEmpty() && !lastOriginType.isNullOrEmpty() && !lastOriginValue.isNullOrEmpty()) {
-            binding.radioButtonCustomLocation.isChecked = true
-            isSettingSourceTextProgrammatically = true
-            binding.autoCompleteTextViewSourceCustom.setText(lastOriginDisplay)
-            isSettingSourceTextProgrammatically = false
-            viewModel.setSelectedOrigin(StopFinderLocation(
-                id = lastOriginValue, name = lastOriginDisplay, type = lastOriginType,
-                disassembledName = lastOriginDisplay, coordinates = null, parent = null, modes = null, assignedStops = null, matchQuality = null, isBest = null, isGlobalId = null
-            ))
-        } else {
-            binding.radioButtonCurrentLocation.isChecked = true
-        }
-
-        if (lastSelectedTimeMillis != -1L) {
-            userSelectedCalendar.timeInMillis = lastSelectedTimeMillis
-            isUserDateTimeExplicitlySet = true
-            viewModel.updateSelectedDateTime(userSelectedCalendar) // Update ViewModel which will trigger observer
-        } else {
-            isUserDateTimeExplicitlySet = false // Default to "Now"
-            viewModel.resetToDepartNow()      // Reset ViewModel to current time / "dep"
-        }
-        viewModel.updateTripTimeType(lastSelectedTimeType) // This will also trigger UI update via observer
-
-        initializeUIFields() // Sets enabled states and calls updateSelectedDateTimeDisplay
+        viewModel.loadLastTripPreferences()
     }
 
-    private fun saveLastSelections(
-        originDisplay: String, originType: String, originValue: String,
-        destDisplay: String, destType: String, destValue: String,
-        useCurrentLocation: Boolean,
-        selectedMillis: Long, selectedTimeType: String
-    ) {
-        with(sharedPreferences.edit()) {
-            putString(KEY_LAST_ORIGIN_DISPLAY, originDisplay)
-            putString(KEY_LAST_ORIGIN_TYPE, originType)
-            putString(KEY_LAST_ORIGIN_VALUE, originValue)
-            putString(KEY_LAST_DEST_DISPLAY, destDisplay)
-            putString(KEY_LAST_DEST_TYPE, destType)
-            putString(KEY_LAST_DEST_VALUE, destValue)
-            putBoolean(KEY_LAST_USE_CURRENT_LOCATION, useCurrentLocation)
-            // Only save selectedMillis if it was manually set, otherwise save -1 to indicate "Now" was used
-            putLong(KEY_LAST_SELECTED_DATE_MILLIS, if(isUserDateTimeExplicitlySet) selectedMillis else -1L)
-            putString(KEY_LAST_SELECTED_TIME_TYPE, selectedTimeType)
-            apply()
-        }
-        Log.d("Prefs", "Saved: Origin=$originDisplay ($originType:$originValue), Dest=$destDisplay ($destType:$destValue), UseCurrentLoc=$useCurrentLocation, TimeMillis=$selectedMillis, TimeType=$selectedTimeType, isManualTimeSet=$isUserDateTimeExplicitlySet")
-    }
+    // saveLastSelections is now fully handled by ViewModel -> Repository
+    // This function can be removed from MainActivity.
+    // private fun saveLastSelections(...) { ... }
+
 
     private fun initializeUIFields() {
         if (binding.radioButtonCurrentLocation.isChecked) {
@@ -457,22 +406,20 @@ class MainActivity : AppCompatActivity() {
             binding.autoCompleteTextViewSourceCustom.isEnabled = true
             binding.autoCompleteTextViewSourceCustom.alpha = 1.0f
         }
-        updateSelectedDateTimeDisplay() // Crucial to update display after loading prefs or init
+        updateSelectedDateTimeDisplay()
     }
 
     private fun showDatePickerDialog() {
-        // Use userSelectedCalendar if already set, otherwise current time
-        val calToShow = if (isUserDateTimeExplicitlySet) userSelectedCalendar else Calendar.getInstance()
+        val calToShow = if (isUserDateTimeExplicitlySet) userSelectedDateTimeCalendar else Calendar.getInstance()
         val year = calToShow.get(Calendar.YEAR)
         val month = calToShow.get(Calendar.MONTH)
         val day = calToShow.get(Calendar.DAY_OF_MONTH)
 
         val datePickerDialog = DatePickerDialog(this,
             { _, selectedYear, selectedMonth, selectedDayOfMonth ->
-                userSelectedCalendar.set(Calendar.YEAR, selectedYear)
-                userSelectedCalendar.set(Calendar.MONTH, selectedMonth)
-                userSelectedCalendar.set(Calendar.DAY_OF_MONTH, selectedDayOfMonth)
-                // Don't set isUserDateTimeExplicitlySet here, wait for time selection
+                userSelectedDateTimeCalendar.set(Calendar.YEAR, selectedYear)
+                userSelectedDateTimeCalendar.set(Calendar.MONTH, selectedMonth)
+                userSelectedDateTimeCalendar.set(Calendar.DAY_OF_MONTH, selectedDayOfMonth)
                 showTimePickerDialog()
             }, year, month, day
         )
@@ -481,35 +428,17 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showTimePickerDialog() {
-        // Use userSelectedCalendar (which now has the picked date) or current time for hour/minute defaults
-        val calToShow = if (isUserDateTimeExplicitlySet) userSelectedCalendar else Calendar.getInstance()
-        // If a date was just picked, userSelectedCalendar has that date, but time might be old/current.
-        // If it's the first time picking time for a newly picked date, default to current hour/minute for that date.
-        val hour: Int
-        val minute: Int
-        if (isUserDateTimeExplicitlySet &&
-            (userSelectedCalendar.get(Calendar.YEAR) != Calendar.getInstance().get(Calendar.YEAR) ||
-                    userSelectedCalendar.get(Calendar.MONTH) != Calendar.getInstance().get(Calendar.MONTH) ||
-                    userSelectedCalendar.get(Calendar.DAY_OF_MONTH) != Calendar.getInstance().get(Calendar.DAY_OF_MONTH))) {
-            // If date is not today OR if it's today but time hasn't been set yet with this date,
-            // it's better to default time picker to something reasonable like current hour/minute
-            // or a fixed time e.g. 9 AM. For now, let's use current hour/minute.
-            val tempCal = Calendar.getInstance()
-            hour = tempCal.get(Calendar.HOUR_OF_DAY)
-            minute = tempCal.get(Calendar.MINUTE)
-        } else {
-            hour = calToShow.get(Calendar.HOUR_OF_DAY)
-            minute = calToShow.get(Calendar.MINUTE)
-        }
-
+        val calToUseForDefaults = Calendar.getInstance()
+        val hour = calToUseForDefaults.get(Calendar.HOUR_OF_DAY)
+        val minute = calToUseForDefaults.get(Calendar.MINUTE)
 
         val timePickerDialog = TimePickerDialog(this,
             { _, selectedHour, selectedMinute ->
-                userSelectedCalendar.set(Calendar.HOUR_OF_DAY, selectedHour)
-                userSelectedCalendar.set(Calendar.MINUTE, selectedMinute)
-                isUserDateTimeExplicitlySet = true // Now it's definitely manually set
-                viewModel.updateSelectedDateTime(userSelectedCalendar) // Update ViewModel
-            }, hour, minute, false // false for 12-hour format with AM/PM
+                userSelectedDateTimeCalendar.set(Calendar.HOUR_OF_DAY, selectedHour)
+                userSelectedDateTimeCalendar.set(Calendar.MINUTE, selectedMinute)
+                isUserDateTimeExplicitlySet = true // User has now explicitly set date and time
+                viewModel.updateSelectedDateTime(userSelectedDateTimeCalendar) // Update ViewModel
+            }, hour, minute, false
         )
         timePickerDialog.show()
     }
@@ -518,7 +447,7 @@ class MainActivity : AppCompatActivity() {
         val timeTypeString = if (binding.radioButtonDepartAt.isChecked) "Depart" else "Arrive"
         if (isUserDateTimeExplicitlySet) {
             val dateFormat = SimpleDateFormat("EEE, MMM d, h:mm a", Locale.getDefault())
-            binding.textViewSelectedDateTime.text = "$timeTypeString: ${dateFormat.format(userSelectedCalendar.time)}"
+            binding.textViewSelectedDateTime.text = "$timeTypeString: ${dateFormat.format(userSelectedDateTimeCalendar.time)}"
         } else {
             binding.textViewSelectedDateTime.text = "$timeTypeString: Now (Default)"
         }

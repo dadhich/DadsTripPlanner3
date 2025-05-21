@@ -5,16 +5,20 @@
     android:id="@+id/mainLayout"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:paddingStart="24dp"
+    android:paddingEnd="24dp"
+    android:paddingBottom="24dp"
+    android:paddingTop="?attr/actionBarSize"
+    android:fitsSystemWindows="true"
     android:focusable="true"
     android:focusableInTouchMode="true"
-    android:padding="24dp"
     tools:context=".MainActivity">
 
     <TextView
         android:id="@+id/textViewScreenTitle"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
+        android:layout_marginTop="24dp"
         android:text="@string/screen_title_plan_trip"
         android:textColor="?android:textColorPrimary"
         android:textSize="28sp"
@@ -38,13 +42,13 @@
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
-        android:backgroundTint="?attr/colorPrimary"
-        android:completionThreshold="3"
         android:hint="@string/hint_enter_destination"
         android:inputType="textPostalAddress"
-        android:paddingBottom="16dp"
         android:textColor="?android:textColorPrimary"
         android:textColorHint="?android:textColorSecondary"
+        android:backgroundTint="?attr/colorPrimary"
+        android:paddingBottom="16dp"
+        android:completionThreshold="3"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/textViewToLabel" />
@@ -53,7 +57,7 @@
         android:id="@+id/textViewFromLabel"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="24dp"
+        android:layout_marginTop="32dp"
         android:text="@string/label_from"
         android:textColor="?android:textColorPrimary"
         android:textSize="18sp"
@@ -94,19 +98,86 @@
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_marginTop="4dp"
-        android:layout_weight="1"
-        android:alpha="0.5"
-        android:backgroundTint="?attr/colorPrimary"
-        android:completionThreshold="3"
-        android:enabled="false"
         android:hint="@string/hint_enter_start_address"
         android:inputType="textPostalAddress"
-        android:paddingBottom="16dp"
         android:textColor="?android:textColorPrimary"
         android:textColorHint="?android:textColorSecondary"
-        app:layout_constraintEnd_toEndOf="parent"
+        android:backgroundTint="?attr/colorPrimary"
+        android:paddingBottom="16dp"
+        android:enabled="false"
+        android:alpha="0.5"
+        android:completionThreshold="3"
+        app:layout_constraintTop_toBottomOf="@id/radioGroupSource"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/radioGroupSource" />
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <TextView
+        android:id="@+id/textViewTripTimeOptionsLabel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="32dp"
+        android:text="Trip Time Options"
+        android:textColor="?android:textColorPrimary"
+        android:textSize="18sp"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/autoCompleteTextViewSourceCustom" />
+
+    <RadioGroup
+        android:id="@+id/radioGroupTripTimeType"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        app:layout_constraintTop_toBottomOf="@id/textViewTripTimeOptionsLabel"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:layout_marginTop="8dp">
+
+        <RadioButton
+            android:id="@+id/radioButtonDepartAt"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Depart At"
+            android:textColor="?android:textColorPrimary"
+            android:buttonTint="?attr/colorPrimary"
+            android:checked="true"/>
+
+        <RadioButton
+            android:id="@+id/radioButtonArriveBy"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Arrive By"
+            android:textColor="?android:textColorPrimary"
+            android:buttonTint="?attr/colorPrimary"
+            android:layout_marginStart="16dp"/>
+    </RadioGroup>
+
+    <TextView
+        android:id="@+id/textViewSelectedDateTime"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="Now (Default)"
+        android:textColor="?android:textColorSecondary"
+        android:textSize="16sp"
+        android:padding="8dp"
+        android:background="?android:attr/editTextBackground"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toStartOf="@+id/buttonChangeDateTime"
+        app:layout_constraintTop_toBottomOf="@id/radioGroupTripTimeType" />
+
+    <ImageButton
+        android:id="@+id/buttonChangeDateTime"
+        android:layout_width="wrap_content"
+        android:layout_height="0dp"
+        android:src="@drawable/ic_calendar_today"
+        android:contentDescription="Change Date and Time"
+        style="?android:attr/borderlessButtonStyle"
+        app:tint="?attr/colorPrimary"
+        app:layout_constraintDimensionRatio="1:1"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="@id/textViewSelectedDateTime"
+        app:layout_constraintBottom_toBottomOf="@id/textViewSelectedDateTime"/>
+
 
     <Button
         android:id="@+id/buttonNext"
@@ -119,7 +190,7 @@
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/autoCompleteTextViewSourceCustom"
+        app:layout_constraintTop_toBottomOf="@id/textViewSelectedDateTime"
         app:layout_constraintVertical_bias="1.0" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

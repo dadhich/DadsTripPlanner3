@@ -4,6 +4,7 @@ import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.location.Location
 import android.location.LocationManager
@@ -52,6 +53,7 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
     private lateinit var fusedLocationClient: FusedLocationProviderClient
+    private lateinit var sharedPreferences: SharedPreferences
 
     private var currentFetchedLocationString: String? = null
     private var currentActualLocation: Location? = null
@@ -73,12 +75,28 @@ class MainActivity : AppCompatActivity() {
     private var selectedOriginFromAutocomplete: StopFinderLocation? = null
     private var selectedDestinationFromAutocomplete: StopFinderLocation? = null
 
+    private var isSettingDestinationTextProgrammatically = false
+    private var isSettingSourceTextProgrammatically = false
+
     companion object {
         const val EXTRA_SOURCE_LOCATION = "com.example.dadstripplanner3.SOURCE_LOCATION"
         const val EXTRA_DESTINATION_LOCATION = "com.example.dadstripplanner3.DESTINATION_LOCATION"
         const val EXTRA_TRIP_OPTIONS_LIST = "com.example.dadstripplanner3.TRIP_OPTIONS_LIST"
         private const val LOCATION_PERMISSION_REQUEST_CODE = 1001
-        private const val DEFAULT_DESTINATION_ADDRESS = "Hornsby Station, Hornsby" // You mentioned you'd adjust "(stop)" part
+
+        // SharedPreferences Keys
+        private const val PREFS_NAME = "TripPlannerPrefs"
+        private const val KEY_LAST_ORIGIN_DISPLAY = "lastOriginDisplay"
+        private const val KEY_LAST_ORIGIN_TYPE = "lastOriginType"
+        private const val KEY_LAST_ORIGIN_VALUE = "lastOriginValue"
+        private const val KEY_LAST_DEST_DISPLAY = "lastDestDisplay"
+        private const val KEY_LAST_DEST_TYPE = "lastDestType"
+        private const val KEY_LAST_DEST_VALUE = "lastDestValue"
+        private const val KEY_LAST_USE_CURRENT_LOCATION = "lastUseCurrentLocation"
+
+        private const val DEFAULT_DESTINATION_ADDRESS = "Hornsby Station, Hornsby"
+        private const val DEFAULT_DESTINATION_ID = "207720" // Global Stop ID for Hornsby Station area
+        private const val DEFAULT_DESTINATION_TYPE = "stop" // Or "any" if using ID that API understands broadly
     }
 
     private val locationSettingsLauncher = registerForActivityResult(
@@ -105,11 +123,15 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        binding.root.isFocusable = true
+        binding.root.isFocusableInTouchMode = true
+
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
+        sharedPreferences = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
         setupAutocompleteAdapters()
         setupListeners()
-        initializeUIFields()
+        loadLastSelectionsOrDefaults()
     }
 
     override fun onPause() {
@@ -148,19 +170,22 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        binding.autoCompleteTextViewDestination.addTextChangedListener(object : TextWatcher {
+        val destinationTextWatcher = object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
                 destinationRunnable?.let { handler.removeCallbacks(it) }
-                val currentText = binding.autoCompleteTextViewDestination.text.toString()
-                if (selectedDestinationFromAutocomplete != null &&
-                    currentText != selectedDestinationFromAutocomplete?.name &&
-                    currentText != selectedDestinationFromAutocomplete?.disassembledName &&
-                    currentText != formatSuggestion(selectedDestinationFromAutocomplete!!)) { // Check against formatted in case it was set like that
-                    selectedDestinationFromAutocomplete = null
+                if (!isSettingDestinationTextProgrammatically) {
+                    val currentText = binding.autoCompleteTextViewDestination.text.toString()
+                    if (selectedDestinationFromAutocomplete != null &&
+                        currentText != selectedDestinationFromAutocomplete?.name &&
+                        currentText != selectedDestinationFromAutocomplete?.disassembledName &&
+                        currentText != formatSuggestion(selectedDestinationFromAutocomplete!!)) {
+                        selectedDestinationFromAutocomplete = null
+                    }
                 }
             }
             override fun afterTextChanged(s: Editable?) {
+                if (isSettingDestinationTextProgrammatically) return
                 if (s != null && s.length >= MIN_CHAR_THRESHOLD) {
                     destinationRunnable = Runnable { fetchAutocompleteSuggestions(s.toString(), "destination") }
                     handler.postDelayed(destinationRunnable!!, DEBOUNCE_DELAY_MS)
@@ -169,32 +194,41 @@ class MainActivity : AppCompatActivity() {
                     destinationAdapter.notifyDataSetChanged()
                 }
             }
-        })
+        }
+        binding.autoCompleteTextViewDestination.addTextChangedListener(destinationTextWatcher)
 
         binding.autoCompleteTextViewDestination.setOnItemClickListener { parent, _, position, _ ->
             val selectedSuggestionString = parent.adapter.getItem(position) as String
             selectedDestinationFromAutocomplete = suggestionItemsMap[selectedSuggestionString]
+
             selectedDestinationFromAutocomplete?.let {
+                isSettingDestinationTextProgrammatically = true
                 binding.autoCompleteTextViewDestination.setText(it.name ?: it.disassembledName ?: "", false)
-                binding.autoCompleteTextViewDestination.dismissDropDown()
+                binding.autoCompleteTextViewDestination.setSelection(binding.autoCompleteTextViewDestination.text.length)
+                isSettingDestinationTextProgrammatically = false
                 Log.d("Autocomplete", "Destination selected: ID=${it.id}, Name=${it.name}, Type=${it.type}")
             }
+            binding.autoCompleteTextViewDestination.dismissDropDown()
             hideKeyboard(binding.autoCompleteTextViewDestination)
+            binding.root.requestFocus()
         }
 
-        binding.autoCompleteTextViewSourceCustom.addTextChangedListener(object : TextWatcher {
+        val sourceTextWatcher = object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
                 sourceRunnable?.let { handler.removeCallbacks(it) }
-                val currentText = binding.autoCompleteTextViewSourceCustom.text.toString()
-                if (selectedOriginFromAutocomplete != null &&
-                    currentText != selectedOriginFromAutocomplete?.name &&
-                    currentText != selectedOriginFromAutocomplete?.disassembledName &&
-                    currentText != formatSuggestion(selectedOriginFromAutocomplete!!)) {
-                    selectedOriginFromAutocomplete = null
+                if (!isSettingSourceTextProgrammatically) {
+                    val currentText = binding.autoCompleteTextViewSourceCustom.text.toString()
+                    if (selectedOriginFromAutocomplete != null &&
+                        currentText != selectedOriginFromAutocomplete?.name &&
+                        currentText != selectedOriginFromAutocomplete?.disassembledName &&
+                        currentText != formatSuggestion(selectedOriginFromAutocomplete!!)) {
+                        selectedOriginFromAutocomplete = null
+                    }
                 }
             }
             override fun afterTextChanged(s: Editable?) {
+                if (isSettingSourceTextProgrammatically) return
                 if (s != null && s.length >= MIN_CHAR_THRESHOLD && binding.radioButtonCustomLocation.isChecked) {
                     sourceRunnable = Runnable { fetchAutocompleteSuggestions(s.toString(), "source") }
                     handler.postDelayed(sourceRunnable!!, DEBOUNCE_DELAY_MS)
@@ -203,17 +237,22 @@ class MainActivity : AppCompatActivity() {
                     sourceAdapter.notifyDataSetChanged()
                 }
             }
-        })
+        }
+        binding.autoCompleteTextViewSourceCustom.addTextChangedListener(sourceTextWatcher)
 
         binding.autoCompleteTextViewSourceCustom.setOnItemClickListener { parent, _, position, _ ->
             val selectedSuggestionString = parent.adapter.getItem(position) as String
             selectedOriginFromAutocomplete = suggestionItemsMap[selectedSuggestionString]
             selectedOriginFromAutocomplete?.let {
+                isSettingSourceTextProgrammatically = true
                 binding.autoCompleteTextViewSourceCustom.setText(it.name ?: it.disassembledName ?: "", false)
-                binding.autoCompleteTextViewSourceCustom.dismissDropDown()
+                binding.autoCompleteTextViewSourceCustom.setSelection(binding.autoCompleteTextViewSourceCustom.text.length)
+                isSettingSourceTextProgrammatically = false
                 Log.d("Autocomplete", "Source selected: ID=${it.id}, Name=${it.name}, Type=${it.type}")
             }
+            binding.autoCompleteTextViewSourceCustom.dismissDropDown()
             hideKeyboard(binding.autoCompleteTextViewSourceCustom)
+            binding.root.requestFocus()
         }
 
         binding.buttonNext.setOnClickListener {
@@ -223,8 +262,10 @@ class MainActivity : AppCompatActivity() {
             var sourceForIntentDisplay: String
             var destinationTypeForAPI: String
             var destinationValueForAPI: String
+            val useCurrentLocationForSave: Boolean
 
             if (binding.radioButtonCurrentLocation.isChecked) {
+                useCurrentLocationForSave = true
                 if (!isLocationPermissionGranted() || !isLocationServicesEnabled() || currentActualLocation == null) {
                     Toast.makeText(this, "Current location not available or permissions not granted.", Toast.LENGTH_LONG).show()
                     if (currentFetchedLocationString?.contains("Fetching") == true || currentActualLocation == null) fetchOrRequestLocation()
@@ -238,6 +279,7 @@ class MainActivity : AppCompatActivity() {
                 originValueForAPI = "$lon:$lat:EPSG:4326"
                 sourceForIntentDisplay = currentFetchedLocationString ?: "My Current Location"
             } else {
+                useCurrentLocationForSave = false
                 val customSourceInputText = binding.autoCompleteTextViewSourceCustom.text.toString().trim()
                 if (customSourceInputText.isEmpty()) {
                     Toast.makeText(this, "Please enter a source address", Toast.LENGTH_SHORT).show()
@@ -246,19 +288,13 @@ class MainActivity : AppCompatActivity() {
                 }
                 sourceForIntentDisplay = customSourceInputText
                 if (selectedOriginFromAutocomplete != null &&
-                    (selectedOriginFromAutocomplete?.name == customSourceInputText ||
-                            selectedOriginFromAutocomplete?.disassembledName == customSourceInputText ||
-                            formatSuggestion(selectedOriginFromAutocomplete!!) == customSourceInputText) && // Check formatted string
-                    selectedOriginFromAutocomplete?.id != null &&
-                    selectedOriginFromAutocomplete?.type != null) {
-
+                    (selectedOriginFromAutocomplete?.name == customSourceInputText || selectedOriginFromAutocomplete?.disassembledName == customSourceInputText || formatSuggestion(selectedOriginFromAutocomplete!!) == customSourceInputText) &&
+                    selectedOriginFromAutocomplete?.id != null && selectedOriginFromAutocomplete?.type != null) {
                     originTypeForAPI = selectedOriginFromAutocomplete!!.type!!
                     originValueForAPI = selectedOriginFromAutocomplete!!.id!!
-                    Log.d("APIRequest", "Using selected origin ID: ${originValueForAPI}, Type: ${originTypeForAPI}")
                 } else {
                     originTypeForAPI = "any"
                     originValueForAPI = customSourceInputText
-                    Log.d("APIRequest", "Using origin text with type 'any': $originValueForAPI")
                 }
             }
 
@@ -268,20 +304,29 @@ class MainActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
             if (selectedDestinationFromAutocomplete != null &&
-                (selectedDestinationFromAutocomplete?.name == destinationInputText ||
-                        selectedDestinationFromAutocomplete?.disassembledName == destinationInputText ||
-                        formatSuggestion(selectedDestinationFromAutocomplete!!) == destinationInputText) && // Check formatted string
-                selectedDestinationFromAutocomplete?.id != null &&
-                selectedDestinationFromAutocomplete?.type != null) {
-
+                (selectedDestinationFromAutocomplete?.name == destinationInputText || selectedDestinationFromAutocomplete?.disassembledName == destinationInputText || formatSuggestion(selectedDestinationFromAutocomplete!!) == destinationInputText) &&
+                selectedDestinationFromAutocomplete?.id != null && selectedDestinationFromAutocomplete?.type != null) {
                 destinationTypeForAPI = selectedDestinationFromAutocomplete!!.type!!
                 destinationValueForAPI = selectedDestinationFromAutocomplete!!.id!!
-                Log.d("APIRequest", "Using selected destination ID: ${destinationValueForAPI}, Type: ${destinationTypeForAPI}")
             } else {
-                destinationTypeForAPI = "any"
-                destinationValueForAPI = destinationInputText
-                Log.d("APIRequest", "Using destination text with type 'any': $destinationValueForAPI")
+                if (destinationInputText.equals(DEFAULT_DESTINATION_ADDRESS, ignoreCase = true) && selectedDestinationFromAutocomplete == null) {
+                    destinationTypeForAPI = DEFAULT_DESTINATION_TYPE
+                    destinationValueForAPI = DEFAULT_DESTINATION_ID
+                } else {
+                    destinationTypeForAPI = "any"
+                    destinationValueForAPI = destinationInputText
+                }
             }
+
+            saveLastSelections(
+                originDisplay = sourceForIntentDisplay,
+                originType = originTypeForAPI,
+                originValue = originValueForAPI,
+                destDisplay = destinationInputText,
+                destType = destinationTypeForAPI,
+                destValue = destinationValueForAPI,
+                useCurrentLocation = useCurrentLocationForSave
+            )
 
             val calendar = Calendar.getInstance()
             val dateFormat = SimpleDateFormat("yyyyMMdd", Locale.getDefault())
@@ -300,7 +345,6 @@ class MainActivity : AppCompatActivity() {
                 destinationType = destinationTypeForAPI, destinationValue = destinationValueForAPI,
                 tfNSWTR = "true"
             )
-
             call.enqueue(object : Callback<TripResponse> {
                 override fun onResponse(call: Call<TripResponse>, response: Response<TripResponse>) {
                     binding.buttonNext.isEnabled = true
@@ -341,14 +385,77 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun loadLastSelectionsOrDefaults() {
+        val lastUseCurrentLocation = sharedPreferences.getBoolean(KEY_LAST_USE_CURRENT_LOCATION, true)
+        val lastOriginDisplay = sharedPreferences.getString(KEY_LAST_ORIGIN_DISPLAY, null)
+        val lastOriginType = sharedPreferences.getString(KEY_LAST_ORIGIN_TYPE, null)
+        val lastOriginValue = sharedPreferences.getString(KEY_LAST_ORIGIN_VALUE, null)
+
+        val lastDestDisplay = sharedPreferences.getString(KEY_LAST_DEST_DISPLAY, DEFAULT_DESTINATION_ADDRESS)
+        val lastDestType = sharedPreferences.getString(KEY_LAST_DEST_TYPE, DEFAULT_DESTINATION_TYPE)
+        val lastDestValue = sharedPreferences.getString(KEY_LAST_DEST_VALUE, DEFAULT_DESTINATION_ID)
+
+        isSettingDestinationTextProgrammatically = true
+        binding.autoCompleteTextViewDestination.setText(lastDestDisplay)
+        isSettingDestinationTextProgrammatically = false
+        if (!lastDestDisplay.isNullOrEmpty() && !lastDestType.isNullOrEmpty() && !lastDestValue.isNullOrEmpty()) {
+            selectedDestinationFromAutocomplete = StopFinderLocation(
+                id = lastDestValue, name = lastDestDisplay, type = lastDestType,
+                disassembledName = lastDestDisplay, coordinates = null, parent = null, modes = null, assignedStops = null, matchQuality = null, isBest = null, isGlobalId = null
+            )
+        }
+
+
+        if (lastUseCurrentLocation) {
+            binding.radioButtonCurrentLocation.isChecked = true // This will trigger its listener if state changes
+            // Further UI updates for current location are handled in the listener / initializeUIFields's call to fetchOrRequestLocation
+        } else if (!lastOriginDisplay.isNullOrEmpty() && !lastOriginType.isNullOrEmpty() && !lastOriginValue.isNullOrEmpty()) {
+            binding.radioButtonCustomLocation.isChecked = true // This will trigger its listener
+            isSettingSourceTextProgrammatically = true
+            binding.autoCompleteTextViewSourceCustom.setText(lastOriginDisplay)
+            isSettingSourceTextProgrammatically = false
+            selectedOriginFromAutocomplete = StopFinderLocation(
+                id = lastOriginValue, name = lastOriginDisplay, type = lastOriginType,
+                disassembledName = lastOriginDisplay, coordinates = null, parent = null, modes = null, assignedStops = null, matchQuality = null, isBest = null, isGlobalId = null
+            )
+        } else { // Absolute default if nothing valid is saved
+            binding.radioButtonCurrentLocation.isChecked = true
+        }
+        // Call initializeUIFields to finalize UI state based on radio buttons
+        initializeUIFields()
+    }
+
+
+    private fun saveLastSelections(
+        originDisplay: String, originType: String, originValue: String,
+        destDisplay: String, destType: String, destValue: String,
+        useCurrentLocation: Boolean
+    ) {
+        with(sharedPreferences.edit()) {
+            putString(KEY_LAST_ORIGIN_DISPLAY, originDisplay)
+            putString(KEY_LAST_ORIGIN_TYPE, originType)
+            putString(KEY_LAST_ORIGIN_VALUE, originValue)
+            putString(KEY_LAST_DEST_DISPLAY, destDisplay)
+            putString(KEY_LAST_DEST_TYPE, destType)
+            putString(KEY_LAST_DEST_VALUE, destValue)
+            putBoolean(KEY_LAST_USE_CURRENT_LOCATION, useCurrentLocation)
+            apply()
+        }
+        Log.d("Prefs", "Saved: Origin=$originDisplay ($originType:$originValue), Dest=$destDisplay ($destType:$destValue), UseCurrentLoc=$useCurrentLocation")
+    }
+
+
     private fun initializeUIFields() {
-        binding.autoCompleteTextViewDestination.setText(DEFAULT_DESTINATION_ADDRESS)
+        // Default destination is set by loadLastSelectionsOrDefaults on first pass.
+        // This function now mostly reacts to radio button state if called after initial load.
         if (binding.radioButtonCurrentLocation.isChecked) {
             binding.autoCompleteTextViewSourceCustom.isEnabled = false
             binding.autoCompleteTextViewSourceCustom.alpha = 0.5f
-            currentFetchedLocationString = "My Current Location (Fetching...)"
+            if (currentFetchedLocationString == null || currentFetchedLocationString?.contains("Fetching") == false) { // Only set to fetching if not already fetched/actively fetching
+                currentFetchedLocationString = "My Current Location (Fetching...)"
+            }
             fetchOrRequestLocation()
-        } else { // Handles if "Specify start address" is default or becomes checked
+        } else { // Custom location is checked
             binding.autoCompleteTextViewSourceCustom.isEnabled = true
             binding.autoCompleteTextViewSourceCustom.alpha = 1.0f
         }
@@ -365,29 +472,46 @@ class MainActivity : AppCompatActivity() {
             override fun onResponse(call: Call<StopFinderResponse>, response: Response<StopFinderResponse>) {
                 if (response.isSuccessful) {
                     val stopFinderResponse = response.body()
-                    suggestionItemsMap.clear()
-                    val suggestionDisplayNames = mutableListOf<String>()
+                    // Keep existing suggestionItemsMap for lookup, don't clear here, clear before populating
+                    val newSuggestionDisplayNames = mutableListOf<String>()
+                    val newSuggestionItemsMap = mutableMapOf<String, StopFinderLocation>()
+
 
                     stopFinderResponse?.locations?.let { locations ->
                         locations.take(10).forEach { location ->
                             val displayName = formatSuggestion(location)
-                            suggestionDisplayNames.add(displayName)
-                            suggestionItemsMap[displayName] = location
+                            newSuggestionDisplayNames.add(displayName)
+                            newSuggestionItemsMap[displayName] = location // Use a temporary map for new suggestions
                         }
                     }
 
                     val adapter = if (fieldType == "destination") destinationAdapter else sourceAdapter
                     val autoCompleteTextView = if (fieldType == "destination") binding.autoCompleteTextViewDestination else binding.autoCompleteTextViewSourceCustom
 
-                    adapter.clear()
-                    if (suggestionDisplayNames.isNotEmpty()) {
-                        adapter.addAll(suggestionDisplayNames)
+                    // Update the main map and adapter
+                    if (fieldType == "destination" || fieldType == "source") { // Consolidate map update
+                        suggestionItemsMap.clear()
+                        suggestionItemsMap.putAll(newSuggestionItemsMap)
                     }
-                    adapter.notifyDataSetChanged()
 
-                    if (autoCompleteTextView.isFocused && suggestionDisplayNames.isNotEmpty()) {
-                        autoCompleteTextView.showDropDown()
+                    adapter.clear()
+                    if (newSuggestionDisplayNames.isNotEmpty()) {
+                        adapter.addAll(newSuggestionDisplayNames)
                     }
+                    // adapter.notifyDataSetChanged() // Not strictly needed if addAll is used with a fresh adapter list
+                    // AutoCompleteTextView's adapter handles its own refresh.
+
+                    if (autoCompleteTextView.isFocused && newSuggestionDisplayNames.isNotEmpty() && !autoCompleteTextView.isPerformingCompletion) {
+                        // Let the adapter handle showing the dropdown when data changes and it has focus.
+                        // No explicit call to showDropDown() might be needed if adapter.notifyDataSetChanged() works as expected.
+                        // However, for safety, if filtering is not automatic on notifyDataSetChanged:
+                        adapter.filter.filter(autoCompleteTextView.text, null)
+                        // Or, if using a simple list:
+                        // autoCompleteTextView.showDropDown()
+                    } else if (newSuggestionDisplayNames.isEmpty()) {
+                        autoCompleteTextView.dismissDropDown()
+                    }
+                    Log.d("Autocomplete", "Suggestions loaded: ${newSuggestionDisplayNames.size} for $fieldType. Adapter count: ${adapter.count}")
                 } else {
                     Log.e("Autocomplete", "API Error for /stop_finder: ${response.code()} - ${response.message()}")
                     val adapter = if (fieldType == "destination") destinationAdapter else sourceAdapter
@@ -395,7 +519,6 @@ class MainActivity : AppCompatActivity() {
                     adapter.notifyDataSetChanged()
                 }
             }
-
             override fun onFailure(call: Call<StopFinderResponse>, t: Throwable) {
                 Log.e("Autocomplete", "Network Failure for /stop_finder: ${t.message}", t)
                 val adapter = if (fieldType == "destination") destinationAdapter else sourceAdapter
@@ -406,6 +529,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun formatSuggestion(location: StopFinderLocation): String {
+        // Ensure location isn't null if this function is called with a potentially null StopFinderLocation
+        if (location.name == null && location.disassembledName == null) return "Unknown Suggestion"
+
         val namePart = location.name ?: location.disassembledName ?: "Unknown Location"
         val typePart = location.type?.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }
         var suggestion = namePart
@@ -416,7 +542,7 @@ class MainActivity : AppCompatActivity() {
         }
         location.parent?.name?.let { parentName ->
             if (parentName != namePart && !namePart.contains(parentName, ignoreCase = true) && parentName.lowercase(Locale.getDefault()) != typePart?.lowercase(Locale.getDefault())) {
-                if (suggestion == namePart && (typePart.isNullOrEmpty() || typePart.lowercase(Locale.getDefault()) == "unknown") ) { // Only add parent if type wasn't already specific or added
+                if (suggestion == namePart && (typePart.isNullOrEmpty() || typePart.lowercase(Locale.getDefault()) == "unknown") ) {
                     suggestion += " - $parentName"
                 } else if (!suggestion.contains(parentName)) {
                     suggestion += ", $parentName"
@@ -425,7 +551,6 @@ class MainActivity : AppCompatActivity() {
         }
         return suggestion.replace("  ", " ").trim()
     }
-
 
     private fun hideKeyboard(view: View) {
         val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
@@ -546,12 +671,12 @@ class MainActivity : AppCompatActivity() {
                         updateLocationDetails(location)
                     } ?: run {
                         Log.d("LocationFetch", "LocationResult.lastLocation is null in callback.")
-                        if (currentActualLocation == null) { // If still no location after update attempt
+                        if (currentActualLocation == null) {
                             currentFetchedLocationString = "My Current Location (Update Failed)"
                             Toast.makeText(this@MainActivity, "Failed to get current location update.", Toast.LENGTH_SHORT).show()
                         }
                     }
-                    stopLocationUpdates() // Stop after receiving the update or if null
+                    stopLocationUpdates()
                 }
             }
         }
@@ -587,7 +712,6 @@ class MainActivity : AppCompatActivity() {
         val latStr = String.format(Locale.US, "%.3f", location.latitude)
         val lonStr = String.format(Locale.US, "%.3f", location.longitude)
         currentFetchedLocationString = "My Current Location (Lat: $latStr, Lon: $lonStr)"
-        // Toast.makeText(this, "Location updated: $currentFetchedLocationString", Toast.LENGTH_SHORT).show()
         Log.d("LocationFetch", "Location details updated: $currentFetchedLocationString")
     }
 
@@ -609,7 +733,7 @@ class MainActivity : AppCompatActivity() {
                 currentFetchedLocationString = "My Current Location (Permission Denied)"
                 currentActualLocation = null
                 if (binding.radioButtonCurrentLocation.isChecked) {
-                    binding.radioButtonCustomLocation.isChecked = true // Switch to custom
+                    binding.radioButtonCustomLocation.isChecked = true
                     Toast.makeText(this, "Cannot use current location. Switched to custom source.", Toast.LENGTH_LONG).show()
                 }
             }
@@ -726,29 +850,26 @@ class MainActivity : AppCompatActivity() {
                             ?: -1L
 
                 firstPTLegEstimatedDepartureTimeFormatted = formatTimeForDisplay(ptEstimatedDepZoned ?: ptPlannedDepZoned)
-                // firstPTLegScheduledDepartureTimeFormatted is used within firstPTLegStatusMessage if needed
+                val scheduledPtTimeFormattedForStatus = formatTimeForDisplay(ptPlannedDepZoned)
+                firstPTLegScheduledDepartureTimeFormatted = scheduledPtTimeFormattedForStatus
 
                 if (firstPublicTransportLeg.isRealtimeControlled == true && ptEstimatedDepZoned != null) {
                     isPTLegRealTimeDataUnavailable = false
                     if (ptPlannedDepZoned != null) {
                         val delayMinutes = calculateTimeDifferenceInMinutes(ptPlannedDepZoned, ptEstimatedDepZoned)
-                        val scheduledTimeFormatted = formatTimeForDisplay(ptPlannedDepZoned)
-                        firstPTLegScheduledDepartureTimeFormatted = scheduledTimeFormatted // Store for potential use
                         firstPTLegStatusMessage = when {
                             delayMinutes == 0L -> "On time"
                             delayMinutes > 0 -> {
                                 isPTLegLate = true
-                                "$scheduledTimeFormatted, $delayMinutes min late"
+                                "$scheduledPtTimeFormattedForStatus, $delayMinutes min late"
                             }
-                            else -> "$scheduledTimeFormatted, ${-delayMinutes} min early"
+                            else -> "$scheduledPtTimeFormattedForStatus, ${-delayMinutes} min early"
                         }
                     } else {
                         firstPTLegStatusMessage = "Real-time"
                     }
                 } else if (ptPlannedDepZoned != null) {
-                    val scheduledTimeFormatted = formatTimeForDisplay(ptPlannedDepZoned)
-                    firstPTLegScheduledDepartureTimeFormatted = scheduledTimeFormatted
-                    firstPTLegStatusMessage = "$scheduledTimeFormatted Scheduled"
+                    firstPTLegStatusMessage = "$scheduledPtTimeFormattedForStatus Scheduled"
                     isPTLegRealTimeDataUnavailable = true
                 } else {
                     firstPTLegStatusMessage = "Data unavailable"
@@ -771,7 +892,6 @@ class MainActivity : AppCompatActivity() {
                 overallJourneyOriginName = overallJourneyOriginName,
                 overallJourneyDestinationName = overallJourneyDestinationName,
                 totalTripDurationInMinutes = totalTripDurationInMinutes,
-
                 firstPTLegDepartureStopName = firstPTLegDepartureStopName,
                 firstPTLegEstimatedDepartureTimeFormatted = firstPTLegEstimatedDepartureTimeFormatted,
                 firstPTLegScheduledDepartureTimeFormatted = firstPTLegScheduledDepartureTimeFormatted,
@@ -779,7 +899,6 @@ class MainActivity : AppCompatActivity() {
                 firstPTLegDepartureEpochMillis = firstPTLegDepartureEpochMillis,
                 isPTLegLate = isPTLegLate,
                 isPTLegRealTimeDataUnavailable = isPTLegRealTimeDataUnavailable,
-
                 transportModesSummary = modesSummary.ifEmpty { if (firstPTLegStatusMessage == "Walk only") "Walk" else "N/A" },
                 primaryPublicTransportInfo = primaryPTInfoString,
                 interchanges = interchanges

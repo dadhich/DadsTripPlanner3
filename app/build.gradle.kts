@@ -80,4 +80,13 @@ dependencies {
     // Gson (if not transitively included by converter-gson, though it usually is)
     implementation(libs.gson)
 
+    // ViewModel
+    implementation(libs.androidx.lifecycle.viewmodel.ktx) // Or latest stable version
+
+    // LiveData (optional, but often used with ViewModel; StateFlow is another option)
+    implementation(libs.androidx.lifecycle.livedata.ktx) // Or latest stable version
+
+    // Activity KTX for by viewModels()
+    implementation(libs.androidx.activity.ktx) // Or latest stable version
+
 }

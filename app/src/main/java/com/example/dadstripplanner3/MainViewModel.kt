@@ -1,20 +1,18 @@
 package com.example.dadstripplanner3
 
-import android.app.Application
+import android.app.Application // For AndroidViewModel
 import android.location.Location
-import android.util.Log // Added Log import
-import androidx.lifecycle.AndroidViewModel
+import android.util.Log
+import androidx.lifecycle.AndroidViewModel // Changed from ViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import retrofit2.Call // Added Retrofit Call import
-import retrofit2.Callback // Added Retrofit Callback import
-import retrofit2.Response // Added Retrofit Response import
+import retrofit2.Call
+import retrofit2.Callback
+import retrofit2.Response
 import java.text.SimpleDateFormat
 import java.time.Duration
 import java.time.Instant
@@ -25,7 +23,7 @@ import java.time.format.DateTimeParseException
 import java.util.Calendar
 import java.util.Locale
 
-// Event Wrapper (can be a top-level class in its own file or here)
+// Event Wrapper
 open class Event<out T>(private val content: T) {
     @Suppress("MemberVisibilityCanBePrivate")
     var hasBeenHandled = false
@@ -42,14 +40,12 @@ open class Event<out T>(private val content: T) {
     fun peekContent(): T = content
 }
 
-// Data class for Navigation Event (can be a top-level class in its own file or here)
+// Data class for Navigation Event
 data class NavigationParams(
     val sourceDisplay: String,
     val destinationDisplay: String,
     val trips: ArrayList<DisplayableTripOption>
 )
-
-
 
 class MainViewModel(application: Application, private val tripRepository: TripRepository) : AndroidViewModel(application) {
 
@@ -107,7 +103,7 @@ class MainViewModel(application: Application, private val tripRepository: TripRe
         _selectedDateTimeCalendar.value = Calendar.getInstance()
         _tripTimeType.value = "dep"
         _isUserDateTimeManuallySet.value = false
-        // loadLastTripPreferences() // Called by MainActivity after ViewModel is ready
+        // loadLastTripPreferences() will be called by Activity after ViewModel is initialized
     }
 
     fun onOriginRadioButtonSelected(isCurrentLocation: Boolean) {
@@ -189,7 +185,7 @@ class MainViewModel(application: Application, private val tripRepository: TripRe
     }
 
     private fun fetchAutocompleteSuggestions(query: String, fieldType: String) {
-        Log.d("ViewModelAutocomplete", "Fetching suggestions for '$query' for $fieldType")
+        Log.d("ViewModelAutocomplete", "Fetching suggestions for '$query' for $fieldType via Repository")
         viewModelScope.launch {
             val result = tripRepository.findLocations(BuildConfig.TfNSW_API_KEY, query)
             if (result.isSuccess) {
@@ -202,19 +198,18 @@ class MainViewModel(application: Application, private val tripRepository: TripRe
                     suggestionDisplayNames.add(displayName)
                     newSuggestionItemsMap[displayName] = location
                 }
-                suggestionItemsMap.clear()
+                suggestionItemsMap.clear() // Clear old map before populating
                 suggestionItemsMap.putAll(newSuggestionItemsMap)
 
                 if (fieldType == "destination") {
                     _destinationSuggestions.value = suggestionDisplayNames
-                } else {
+                } else { // source
                     _sourceSuggestions.value = suggestionDisplayNames
                 }
-                Log.d("ViewModelAutocomplete", "Suggestions loaded: ${suggestionDisplayNames.size} for $fieldType")
             } else {
-                Log.e("ViewModelAutocomplete", "API Error for /stop_finder: ${result.exceptionOrNull()?.message}")
+                Log.e("ViewModelAutocomplete", "Error fetching suggestions: ${result.exceptionOrNull()?.message}")
+                _userMessage.value = Event("Could not fetch suggestions.")
                 if (fieldType == "destination") _destinationSuggestions.value = emptyList() else _sourceSuggestions.value = emptyList()
-                _userMessage.value = Event("Could not fetch suggestions: ${result.exceptionOrNull()?.message ?: "Unknown error"}")
             }
         }
     }
@@ -242,21 +237,22 @@ class MainViewModel(application: Application, private val tripRepository: TripRe
     }
 
     fun onPlanTripClicked(
+        // These parameters are now for what the ViewModel will pass to the Repository for API call
+        // and what it will use for saving via Repository
         originDisplayForSave: String, originTypeForSave: String, originValueForSave: String,
         destDisplayForSave: String, destTypeForSave: String, destValueForSave: String,
         useCurrentLocationForSave: Boolean,
         tripDate: String, tripTime: String, depArrMacro: String
     ) {
         _isLoading.value = true
-        Log.d("ViewModelAPIRequest", "Planning Trip: OriginType=$originTypeForSave, OriginValue=$originValueForSave, DestType=$destTypeForSave, DestValue=$destValueForSave, Date=$tripDate, Time=$tripTime, Mode=$depArrMacro")
+        Log.d("ViewModelAPIRequest", "Planning Trip via Repository: OriginType=$originTypeForSave, OriginValue=$originValueForSave, DestType=$destTypeForSave, DestValue=$destValueForSave, Date=$tripDate, Time=$tripTime, Mode=$depArrMacro")
 
         viewModelScope.launch {
             val result = tripRepository.planTrip(
                 apiKey = BuildConfig.TfNSW_API_KEY,
                 originType = originTypeForSave, originValue = originValueForSave,
                 destinationType = destTypeForSave, destinationValue = destValueForSave,
-                date = tripDate, time = tripTime, depArrMacro = depArrMacro,
-                tfNSWTR = "true" // Ensure this parameter is correctly named as in TfNSWApiService
+                date = tripDate, time = tripTime, depArrMacro = depArrMacro
             )
             _isLoading.value = false
             if (result.isSuccess) {
@@ -265,7 +261,7 @@ class MainViewModel(application: Application, private val tripRepository: TripRe
                     val displayableTrips = transformApiJourneysToDisplayableOptions(tripResponseObject.journeys)
                     _navigateToRouteOptions.value = Event(NavigationParams(originDisplayForSave, destDisplayForSave, ArrayList(displayableTrips)))
 
-                    tripRepository.saveLastTripQueryDetails(
+                    tripRepository.saveLastTripQueryDetails( // ViewModel tells Repository to save
                         originDisplay = originDisplayForSave, originType = originTypeForSave, originValue = originValueForSave,
                         destDisplay = destDisplayForSave, destType = destTypeForSave, destValue = destValueForSave,
                         useCurrentLocation = useCurrentLocationForSave,
@@ -276,20 +272,19 @@ class MainViewModel(application: Application, private val tripRepository: TripRe
                 } else if (tripResponseObject?.systemMessages != null && tripResponseObject.systemMessages.isNotEmpty()) {
                     val errorText = tripResponseObject.systemMessages.joinToString("; ") { msg -> msg.text ?: "Unknown system message" }
                     _userMessage.value = Event("API Info: $errorText")
-                    Log.w("ViewModelAPIResponse", "Success but no journeys (SystemMessages: $errorText)")
                 } else {
                     _userMessage.value = Event("No trip options found for this request.")
-                    Log.w("ViewModelAPIResponse", "No trip options or system messages in successful response.")
                 }
             } else {
                 _userMessage.value = Event("API Error: ${result.exceptionOrNull()?.message ?: "Unknown API error"}")
-                Log.e("ViewModelAPIResponse", "API Error: ${result.exceptionOrNull()?.localizedMessage}", result.exceptionOrNull())
             }
         }
     }
 
     fun loadLastTripPreferences() {
-        _lastQueryPreferences.value = tripRepository.loadLastTripQueryDetails()
+        viewModelScope.launch {
+            _lastQueryPreferences.postValue(tripRepository.loadLastTripQueryDetails())
+        }
     }
 
     private fun transformApiJourneysToDisplayableOptions(apiJourneys: List<Journey>): List<DisplayableTripOption> {

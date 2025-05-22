@@ -4,9 +4,9 @@ import android.os.Build
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.util.Log
-import android.view.MenuItem
 import android.view.View
 import android.widget.Toast
+import androidx.recyclerview.widget.DividerItemDecoration // Import DividerItemDecoration
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.dadstripplanner3.databinding.ActivityTripDetailsBinding
 
@@ -30,48 +30,43 @@ class TripDetailsActivity : AppCompatActivity() {
         }
 
         // Setup Toolbar
-        // If using the MaterialToolbar directly for title:
-        binding.toolbarTripDetails.title = "Trip Details" // You can make this more dynamic if needed
+        binding.toolbarTripDetails.title = "Trip Details"
         binding.toolbarTripDetails.setNavigationOnClickListener {
-            finish() // Handles back press
+            finish()
         }
-        // If you added a custom TextView for title in activity_trip_details.xml, set its text here.
 
         if (selectedTripOption == null) {
             Log.e("TripDetailsActivity", "No TripOption data received.")
             Toast.makeText(this, "Error: Trip details not found.", Toast.LENGTH_LONG).show()
-            finish() // Close activity if no data
+            finish()
             return
         }
 
-        // Set the trip summary header
         binding.textViewTripSummaryHeader.text =
             "From: ${selectedTripOption!!.overallJourneyOriginName}\nTo: ${selectedTripOption!!.overallJourneyDestinationName}"
 
-
-        // Setup RecyclerView with the legs from the selectedTripOption
         if (selectedTripOption!!.legs.isNotEmpty()) {
             tripLegsAdapter = TripLegsAdapter(selectedTripOption!!.legs)
             binding.recyclerViewTripLegs.layoutManager = LinearLayoutManager(this)
             binding.recyclerViewTripLegs.adapter = tripLegsAdapter
+
+            // --- ADD DIVIDER ITEM DECORATION ---
+            val dividerItemDecoration = DividerItemDecoration(
+                binding.recyclerViewTripLegs.context,
+                (binding.recyclerViewTripLegs.layoutManager as LinearLayoutManager).orientation
+            )
+            // Optionally, set a custom drawable for the divider:
+            // ContextCompat.getDrawable(this, R.drawable.your_custom_divider)?.let {
+            //    dividerItemDecoration.setDrawable(it)
+            // }
+            binding.recyclerViewTripLegs.addItemDecoration(dividerItemDecoration)
+            // --- END ADD DIVIDER ---
+
             binding.recyclerViewTripLegs.visibility = View.VISIBLE
         } else {
             Log.w("TripDetailsActivity", "Selected trip option has no legs to display.")
             Toast.makeText(this, "No trip legs to display for this option.", Toast.LENGTH_LONG).show()
             binding.recyclerViewTripLegs.visibility = View.GONE
-            // Optionally show a "No legs available" message in the UI
         }
     }
-
-    // If you are using setSupportActionBar(binding.toolbarTripDetails) and want to handle
-    // the Up button from the ActionBar in a standard way:
-    // override fun onOptionsItemSelected(item: MenuItem): Boolean {
-    //     when (item.itemId) {
-    //         android.R.id.home -> {
-    //             onBackPressedDispatcher.onBackPressed()
-    //             return true
-    //         }
-    //     }
-    //     return super.onOptionsItemSelected(item)
-    // }
 }

@@ -28,15 +28,15 @@ data class LastQueryPreferences(
 )
 
 class TripRepository(
-    private val context: Context, // For SharedPreferences
-    private val tfnswApiService: TfNSWApiService // For API calls
+    private val context: Context,
+    private val tfnswApiService: TfNSWApiService
 ) {
 
     private val sharedPreferences: SharedPreferences by lazy {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     }
 
-    // --- SharedPreferences Methods (from previous step, ensure they are complete) ---
+    // --- SharedPreferences Methods ---
     fun saveLastTripQueryDetails(
         originDisplay: String, originType: String, originValue: String,
         destDisplay: String, destType: String, destValue: String,
@@ -56,7 +56,7 @@ class TripRepository(
             putString(KEY_LAST_SELECTED_TIME_TYPE, selectedTimeType)
             apply()
         }
-        Log.d("RepositoryPrefs", "Saved: Origin=$originDisplay, Dest=$destDisplay, UseCurrentLoc=$useCurrentLocation, TimeMillis=$selectedMillis, isManualTimeSet=$isDateTimeManuallySet, TimeType=$selectedTimeType")
+        Log.d("RepositoryPrefs", "Saved: Origin=$originDisplay ($originType:$originValue), Dest=$destDisplay ($destType:$destValue), UseCurrentLoc=$useCurrentLocation, TimeMillis=$selectedMillis, isManualTimeSet=$isDateTimeManuallySet, TimeType=$selectedTimeType")
     }
 
     fun loadLastTripQueryDetails(): LastQueryPreferences {
@@ -83,7 +83,7 @@ class TripRepository(
     suspend fun findLocations(apiKey: String, searchTerm: String): Result<StopFinderResponse> = withContext(Dispatchers.IO) {
         suspendCancellableCoroutine { continuation ->
             val authHeader = "apikey $apiKey"
-            Log.d("TripRepository", "findLocations: searchTerm='$searchTerm', authHeader='$authHeader'")
+            Log.d("TripRepository", "findLocations: searchTerm='$searchTerm'")
             val call = tfnswApiService.findLocations(
                 authorization = authHeader,
                 searchTerm = searchTerm
@@ -93,19 +93,19 @@ class TripRepository(
                     if (response.isSuccessful) {
                         response.body()?.let {
                             Log.d("TripRepository", "findLocations success: ${it.locations?.size} locations")
-                            continuation.resume(Result.success(it))
+                            if (continuation.isActive) continuation.resume(Result.success(it))
                         } ?: continuation.resume(Result.failure(Exception("Response body is null for stop finder")))
                     } else {
                         val errorBody = response.errorBody()?.string() ?: "Unknown error body"
                         val errorMsg = "Stop finder API Error: ${response.code()} - ${response.message()} - $errorBody"
                         Log.e("TripRepository", errorMsg)
-                        continuation.resume(Result.failure(Exception(errorMsg)))
+                        if (continuation.isActive) continuation.resume(Result.failure(Exception(errorMsg)))
                     }
                 }
 
                 override fun onFailure(call: Call<StopFinderResponse>, t: Throwable) {
                     Log.e("TripRepository", "Stop finder Network Failure: ${t.message}", t)
-                    continuation.resume(Result.failure(t))
+                    if (continuation.isActive) continuation.resume(Result.failure(t))
                 }
             })
             continuation.invokeOnCancellation {
@@ -124,7 +124,7 @@ class TripRepository(
     ): Result<TripResponse> = withContext(Dispatchers.IO) {
         suspendCancellableCoroutine { continuation ->
             val authHeader = "apikey $apiKey"
-            Log.d("TripRepository", "planTrip: Origin=$originType:$originValue, Dest=$destinationType:$destinationValue, Date=$date, Time=$time, Mode=$depArrMacro, Auth=$authHeader")
+            Log.d("TripRepository", "planTrip: Origin=$originType:$originValue, Dest=$destinationType:$destinationValue, Date=$date, Time=$time, Mode=$depArrMacro")
             val call = tfnswApiService.planTrip(
                 authorization = authHeader,
                 date = date,
@@ -143,21 +143,22 @@ class TripRepository(
                     if (response.isSuccessful) {
                         response.body()?.let {
                             Log.d("TripRepository", "planTrip success: ${it.journeys?.size} journeys")
-                            continuation.resume(Result.success(it))
+                            if (continuation.isActive) continuation.resume(Result.success(it))
                         } ?: continuation.resume(Result.failure(Exception("Response body is null for trip plan")))
                     } else {
                         val errorBody = response.errorBody()?.string() ?: "Unknown error body"
                         val errorMsg = "Trip plan API Error: ${response.code()} - ${response.message()} - $errorBody"
                         Log.e("TripRepository", errorMsg)
-                        continuation.resume(Result.failure(Exception(errorMsg)))
+                        if (continuation.isActive) continuation.resume(Result.failure(Exception(errorMsg)))
                     }
                 }
 
                 override fun onFailure(call: Call<TripResponse>, t: Throwable) {
                     Log.e("TripRepository", "Trip plan Network Failure: ${t.message}", t)
-                    continuation.resume(Result.failure(t))
+                    if (continuation.isActive) continuation.resume(Result.failure(t))
                 }
             })
+
             continuation.invokeOnCancellation {
                 call.cancel()
                 Log.d("TripRepository", "planTrip call cancelled")
@@ -166,8 +167,7 @@ class TripRepository(
     }
 
     companion object {
-        // SharedPreferences Keys
-        private const val PREFS_NAME = "TripPlannerPrefs" // Referenced by MainActivity for init
+        private const val PREFS_NAME = "TripPlannerPrefs"
         private const val KEY_LAST_ORIGIN_DISPLAY = "lastOriginDisplay"
         private const val KEY_LAST_ORIGIN_TYPE = "lastOriginType"
         private const val KEY_LAST_ORIGIN_VALUE = "lastOriginValue"
@@ -179,7 +179,6 @@ class TripRepository(
         private const val KEY_IS_DATETIME_MANUALLY_SET = "isDateTimeManuallySet"
         private const val KEY_LAST_SELECTED_TIME_TYPE = "lastSelectedTimeType"
 
-        // Default destination constants, can be accessed by ViewModel
         const val DEFAULT_DESTINATION_ADDRESS = "Hornsby Station, Hornsby"
         const val DEFAULT_DESTINATION_ID = "207720"
         const val DEFAULT_DESTINATION_TYPE = "stop"

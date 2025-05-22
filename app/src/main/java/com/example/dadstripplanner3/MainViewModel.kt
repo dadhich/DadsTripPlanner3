@@ -1,18 +1,18 @@
 package com.example.dadstripplanner3
 
-import android.app.Application // For AndroidViewModel
+import android.app.Application
 import android.location.Location
 import android.util.Log
-import androidx.lifecycle.AndroidViewModel // Changed from ViewModel
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import retrofit2.Call
-import retrofit2.Callback
-import retrofit2.Response
+// Removed Retrofit imports - Call, Callback, Response
 import java.text.SimpleDateFormat
 import java.time.Duration
 import java.time.Instant
@@ -23,24 +23,16 @@ import java.time.format.DateTimeParseException
 import java.util.Calendar
 import java.util.Locale
 
-// Event Wrapper
+// Event Wrapper - Ensure this class is defined (e.g., in this file or a separate Utils.kt)
 open class Event<out T>(private val content: T) {
     @Suppress("MemberVisibilityCanBePrivate")
     var hasBeenHandled = false
         private set
-
-    fun getContentIfNotHandled(): T? {
-        return if (hasBeenHandled) {
-            null
-        } else {
-            hasBeenHandled = true
-            content
-        }
-    }
+    fun getContentIfNotHandled(): T? = if (hasBeenHandled) null else { hasBeenHandled = true; content }
     fun peekContent(): T = content
 }
 
-// Data class for Navigation Event
+// NavigationParams - Ensure this class is defined
 data class NavigationParams(
     val sourceDisplay: String,
     val destinationDisplay: String,
@@ -103,7 +95,7 @@ class MainViewModel(application: Application, private val tripRepository: TripRe
         _selectedDateTimeCalendar.value = Calendar.getInstance()
         _tripTimeType.value = "dep"
         _isUserDateTimeManuallySet.value = false
-        // loadLastTripPreferences() will be called by Activity after ViewModel is initialized
+        // loadLastTripPreferences() is called by MainActivity after ViewModel is ready
     }
 
     fun onOriginRadioButtonSelected(isCurrentLocation: Boolean) {
@@ -156,7 +148,6 @@ class MainViewModel(application: Application, private val tripRepository: TripRe
     fun clearSelectedOriginAfterTextChange() {
         _selectedOriginFromAutocomplete.value = null
     }
-
     fun clearSelectedDestinationAfterTextChange() {
         _selectedDestinationFromAutocomplete.value = null
     }
@@ -198,7 +189,7 @@ class MainViewModel(application: Application, private val tripRepository: TripRe
                     suggestionDisplayNames.add(displayName)
                     newSuggestionItemsMap[displayName] = location
                 }
-                suggestionItemsMap.clear() // Clear old map before populating
+                suggestionItemsMap.clear()
                 suggestionItemsMap.putAll(newSuggestionItemsMap)
 
                 if (fieldType == "destination") {
@@ -237,8 +228,6 @@ class MainViewModel(application: Application, private val tripRepository: TripRe
     }
 
     fun onPlanTripClicked(
-        // These parameters are now for what the ViewModel will pass to the Repository for API call
-        // and what it will use for saving via Repository
         originDisplayForSave: String, originTypeForSave: String, originValueForSave: String,
         destDisplayForSave: String, destTypeForSave: String, destValueForSave: String,
         useCurrentLocationForSave: Boolean,
@@ -261,7 +250,7 @@ class MainViewModel(application: Application, private val tripRepository: TripRe
                     val displayableTrips = transformApiJourneysToDisplayableOptions(tripResponseObject.journeys)
                     _navigateToRouteOptions.value = Event(NavigationParams(originDisplayForSave, destDisplayForSave, ArrayList(displayableTrips)))
 
-                    tripRepository.saveLastTripQueryDetails( // ViewModel tells Repository to save
+                    tripRepository.saveLastTripQueryDetails(
                         originDisplay = originDisplayForSave, originType = originTypeForSave, originValue = originValueForSave,
                         destDisplay = destDisplayForSave, destType = destTypeForSave, destValue = destValueForSave,
                         useCurrentLocation = useCurrentLocationForSave,
@@ -282,7 +271,7 @@ class MainViewModel(application: Application, private val tripRepository: TripRe
     }
 
     fun loadLastTripPreferences() {
-        viewModelScope.launch {
+        viewModelScope.launch { // Can be viewModelScope if Repo uses withContext(Dispatchers.IO)
             _lastQueryPreferences.postValue(tripRepository.loadLastTripQueryDetails())
         }
     }

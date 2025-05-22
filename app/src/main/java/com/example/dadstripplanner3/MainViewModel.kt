@@ -254,10 +254,7 @@ class MainViewModel(application: Application, private val tripRepository: TripRe
                     tripRepository.saveLastTripQueryDetails(
                         originDisplay = originDisplayForSave, originType = originTypeForSave, originValue = originValueForSave,
                         destDisplay = destDisplayForSave, destType = destTypeForSave, destValue = destValueForSave,
-                        useCurrentLocation = useCurrentLocationForSave,
-                        selectedMillis = _selectedDateTimeCalendar.value?.timeInMillis ?: Calendar.getInstance().timeInMillis,
-                        isDateTimeManuallySet = _isUserDateTimeManuallySet.value ?: false,
-                        selectedTimeType = _tripTimeType.value ?: "dep"
+                        useCurrentLocation = useCurrentLocationForSave
                     )
                 } else if (tripResponseObject?.systemMessages != null && tripResponseObject.systemMessages.isNotEmpty()) {
                     val errorText = tripResponseObject.systemMessages.joinToString("; ") { msg -> msg.text ?: "Unknown system message" }

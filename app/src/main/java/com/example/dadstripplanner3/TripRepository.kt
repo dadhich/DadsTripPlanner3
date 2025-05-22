@@ -3,7 +3,8 @@ package com.example.dadstripplanner3
 import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
-import com.example.dadstripplanner3.BuildConfig
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
@@ -11,7 +12,6 @@ import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
 import kotlin.coroutines.resume
-import kotlin.coroutines.resumeWithException
 
 // Data class to hold loaded preference values
 data class LastQueryPreferences(
@@ -35,8 +35,9 @@ class TripRepository(
     private val sharedPreferences: SharedPreferences by lazy {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     }
+    private val gson = Gson()
 
-    // --- SharedPreferences Methods ---
+    // --- SharedPreferences Methods for Last Query ---
     fun saveLastTripQueryDetails(
         originDisplay: String, originType: String, originValue: String,
         destDisplay: String, destType: String, destValue: String,
@@ -56,30 +57,75 @@ class TripRepository(
             putString(KEY_LAST_SELECTED_TIME_TYPE, selectedTimeType)
             apply()
         }
-        Log.d("RepositoryPrefs", "Saved: Origin=$originDisplay ($originType:$originValue), Dest=$destDisplay ($destType:$destValue), UseCurrentLoc=$useCurrentLocation, TimeMillis=$selectedMillis, isManualTimeSet=$isDateTimeManuallySet, TimeType=$selectedTimeType")
+        Log.d("RepositoryPrefs", "Saved Last Query: Origin=$originDisplay, Dest=$destDisplay")
     }
 
     fun loadLastTripQueryDetails(): LastQueryPreferences {
-        val useCurrentLocation = sharedPreferences.getBoolean(KEY_LAST_USE_CURRENT_LOCATION, true)
-        val originDisplay = sharedPreferences.getString(KEY_LAST_ORIGIN_DISPLAY, null)
-        val originType = sharedPreferences.getString(KEY_LAST_ORIGIN_TYPE, null)
-        val originValue = sharedPreferences.getString(KEY_LAST_ORIGIN_VALUE, null)
-        val destDisplay = sharedPreferences.getString(KEY_LAST_DEST_DISPLAY, DEFAULT_DESTINATION_ADDRESS)
-        val destType = sharedPreferences.getString(KEY_LAST_DEST_TYPE, DEFAULT_DESTINATION_TYPE)
-        val destValue = sharedPreferences.getString(KEY_LAST_DEST_VALUE, DEFAULT_DESTINATION_ID)
-        val selectedTimeMillis = sharedPreferences.getLong(KEY_LAST_SELECTED_DATE_MILLIS, -1L)
-        val isDateTimeManuallySet = sharedPreferences.getBoolean(KEY_IS_DATETIME_MANUALLY_SET, false)
-        val selectedTimeType = sharedPreferences.getString(KEY_LAST_SELECTED_TIME_TYPE, "dep") ?: "dep"
-
         return LastQueryPreferences(
-            useCurrentLocation, originDisplay, originType, originValue,
-            destDisplay, destType, destValue,
-            selectedTimeMillis, isDateTimeManuallySet, selectedTimeType
+            useCurrentLocation = sharedPreferences.getBoolean(KEY_LAST_USE_CURRENT_LOCATION, true),
+            originDisplay = sharedPreferences.getString(KEY_LAST_ORIGIN_DISPLAY, null),
+            originType = sharedPreferences.getString(KEY_LAST_ORIGIN_TYPE, null),
+            originValue = sharedPreferences.getString(KEY_LAST_ORIGIN_VALUE, null),
+            destDisplay = sharedPreferences.getString(KEY_LAST_DEST_DISPLAY, DEFAULT_DESTINATION_ADDRESS),
+            destType = sharedPreferences.getString(KEY_LAST_DEST_TYPE, DEFAULT_DESTINATION_TYPE),
+            destValue = sharedPreferences.getString(KEY_LAST_DEST_VALUE, DEFAULT_DESTINATION_ID),
+            selectedTimeMillis = sharedPreferences.getLong(KEY_LAST_SELECTED_DATE_MILLIS, -1L),
+            isDateTimeManuallySet = sharedPreferences.getBoolean(KEY_IS_DATETIME_MANUALLY_SET, false),
+            selectedTimeType = sharedPreferences.getString(KEY_LAST_SELECTED_TIME_TYPE, "dep") ?: "dep"
         )
     }
 
+    // --- NEW: SharedPreferences Methods for Favorites ---
+    fun addFavorite(favorite: FavoriteTripQuery): Boolean {
+        val favorites = getFavorites().toMutableList()
+        if (favorites.any { it.favoriteName.equals(favorite.favoriteName, ignoreCase = true) }) {
+            Log.w("TripRepository", "Favorite with name '${favorite.favoriteName}' already exists.")
+            return false // Indicate failure due to duplicate name
+        }
+        favorites.add(favorite)
+        saveFavoritesList(favorites)
+        Log.d("TripRepository", "Added favorite: ${favorite.favoriteName}")
+        return true // Indicate success
+    }
 
-    // --- API Call Methods IMPLEMENTED ---
+    fun getFavorites(): List<FavoriteTripQuery> {
+        val jsonFavorites = sharedPreferences.getString(KEY_FAVORITES_LIST, null)
+        return if (jsonFavorites != null) {
+            try {
+                val type = object : TypeToken<List<FavoriteTripQuery>>() {}.type
+                gson.fromJson(jsonFavorites, type) ?: emptyList()
+            } catch (e: Exception) {
+                Log.e("TripRepository", "Error deserializing favorites", e)
+                emptyList() // Return empty list on error
+            }
+        } else {
+            emptyList()
+        }
+    }
+
+    fun removeFavorite(favoriteName: String): Boolean {
+        val favorites = getFavorites().toMutableList()
+        val initialSize = favorites.size
+        favorites.removeAll { it.favoriteName.equals(favoriteName, ignoreCase = true) }
+        if (favorites.size < initialSize) {
+            saveFavoritesList(favorites)
+            Log.d("TripRepository", "Removed favorite: $favoriteName")
+            return true
+        }
+        Log.w("TripRepository", "Favorite not found for removal: $favoriteName")
+        return false
+    }
+
+    private fun saveFavoritesList(favorites: List<FavoriteTripQuery>) {
+        val jsonFavorites = gson.toJson(favorites)
+        with(sharedPreferences.edit()) {
+            putString(KEY_FAVORITES_LIST, jsonFavorites)
+            apply()
+        }
+    }
+
+
+    // --- API Call Methods ---
     suspend fun findLocations(apiKey: String, searchTerm: String): Result<StopFinderResponse> = withContext(Dispatchers.IO) {
         suspendCancellableCoroutine { continuation ->
             val authHeader = "apikey $apiKey"
@@ -92,9 +138,10 @@ class TripRepository(
                 override fun onResponse(call: Call<StopFinderResponse>, response: Response<StopFinderResponse>) {
                     if (response.isSuccessful) {
                         response.body()?.let {
-                            Log.d("TripRepository", "findLocations success: ${it.locations?.size} locations")
                             if (continuation.isActive) continuation.resume(Result.success(it))
-                        } ?: continuation.resume(Result.failure(Exception("Response body is null for stop finder")))
+                        } ?: run {
+                            if (continuation.isActive) continuation.resume(Result.failure(Exception("Response body is null for stop finder")))
+                        }
                     } else {
                         val errorBody = response.errorBody()?.string() ?: "Unknown error body"
                         val errorMsg = "Stop finder API Error: ${response.code()} - ${response.message()} - $errorBody"
@@ -102,49 +149,38 @@ class TripRepository(
                         if (continuation.isActive) continuation.resume(Result.failure(Exception(errorMsg)))
                     }
                 }
-
                 override fun onFailure(call: Call<StopFinderResponse>, t: Throwable) {
                     Log.e("TripRepository", "Stop finder Network Failure: ${t.message}", t)
                     if (continuation.isActive) continuation.resume(Result.failure(t))
                 }
             })
-            continuation.invokeOnCancellation {
-                call.cancel()
-                Log.d("TripRepository", "findLocations call cancelled")
-            }
+            continuation.invokeOnCancellation { call.cancel(); Log.d("TripRepository", "findLocations call cancelled") }
         }
     }
 
     suspend fun planTrip(
-        apiKey: String,
-        originType: String, originValue: String,
-        destinationType: String, destinationValue: String,
-        date: String, time: String, depArrMacro: String,
-        tfNSWTR: String = "true", calcNumberOfTrips: Int = 5
+        apiKey: String, originType: String, originValue: String,
+        destinationType: String, destinationValue: String, date: String,
+        time: String, depArrMacro: String, tfNSWTR: String = "true",
+        calcNumberOfTrips: Int = 5
     ): Result<TripResponse> = withContext(Dispatchers.IO) {
         suspendCancellableCoroutine { continuation ->
             val authHeader = "apikey $apiKey"
             Log.d("TripRepository", "planTrip: Origin=$originType:$originValue, Dest=$destinationType:$destinationValue, Date=$date, Time=$time, Mode=$depArrMacro")
             val call = tfnswApiService.planTrip(
-                authorization = authHeader,
-                date = date,
-                time = time,
-                depArrMacro = depArrMacro,
-                originType = originType,
-                originValue = originValue,
-                destinationType = destinationType,
-                destinationValue = destinationValue,
-                calcNumberOfTrips = calcNumberOfTrips,
-                tfNSWTR = tfNSWTR
+                authorization = authHeader, date = date, time = time, depArrMacro = depArrMacro,
+                originType = originType, originValue = originValue,
+                destinationType = destinationType, destinationValue = destinationValue,
+                calcNumberOfTrips = calcNumberOfTrips, tfNSWTR = tfNSWTR
             )
-
             call.enqueue(object : Callback<TripResponse> {
                 override fun onResponse(call: Call<TripResponse>, response: Response<TripResponse>) {
                     if (response.isSuccessful) {
                         response.body()?.let {
-                            Log.d("TripRepository", "planTrip success: ${it.journeys?.size} journeys")
                             if (continuation.isActive) continuation.resume(Result.success(it))
-                        } ?: continuation.resume(Result.failure(Exception("Response body is null for trip plan")))
+                        } ?: run {
+                            if (continuation.isActive) continuation.resume(Result.failure(Exception("Response body is null for trip plan")))
+                        }
                     } else {
                         val errorBody = response.errorBody()?.string() ?: "Unknown error body"
                         val errorMsg = "Trip plan API Error: ${response.code()} - ${response.message()} - $errorBody"
@@ -152,17 +188,12 @@ class TripRepository(
                         if (continuation.isActive) continuation.resume(Result.failure(Exception(errorMsg)))
                     }
                 }
-
                 override fun onFailure(call: Call<TripResponse>, t: Throwable) {
                     Log.e("TripRepository", "Trip plan Network Failure: ${t.message}", t)
                     if (continuation.isActive) continuation.resume(Result.failure(t))
                 }
             })
-
-            continuation.invokeOnCancellation {
-                call.cancel()
-                Log.d("TripRepository", "planTrip call cancelled")
-            }
+            continuation.invokeOnCancellation { call.cancel(); Log.d("TripRepository", "planTrip call cancelled") }
         }
     }
 
@@ -178,6 +209,7 @@ class TripRepository(
         private const val KEY_LAST_SELECTED_DATE_MILLIS = "lastSelectedDateMillis"
         private const val KEY_IS_DATETIME_MANUALLY_SET = "isDateTimeManuallySet"
         private const val KEY_LAST_SELECTED_TIME_TYPE = "lastSelectedTimeType"
+        private const val KEY_FAVORITES_LIST = "favoritesList" // Key for storing favorites
 
         const val DEFAULT_DESTINATION_ADDRESS = "Hornsby Station, Hornsby"
         const val DEFAULT_DESTINATION_ID = "207720"

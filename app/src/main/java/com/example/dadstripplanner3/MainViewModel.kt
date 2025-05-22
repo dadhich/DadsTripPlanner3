@@ -12,8 +12,7 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-// Removed Retrofit imports - Call, Callback, Response
-import java.text.SimpleDateFormat
+import java.text.SimpleDateFormat // Keep for date/time formatting for API
 import java.time.Duration
 import java.time.Instant
 import java.time.ZoneId
@@ -23,7 +22,7 @@ import java.time.format.DateTimeParseException
 import java.util.Calendar
 import java.util.Locale
 
-// Event Wrapper - Ensure this class is defined (e.g., in this file or a separate Utils.kt)
+// Event Wrapper
 open class Event<out T>(private val content: T) {
     @Suppress("MemberVisibilityCanBePrivate")
     var hasBeenHandled = false
@@ -32,7 +31,7 @@ open class Event<out T>(private val content: T) {
     fun peekContent(): T = content
 }
 
-// NavigationParams - Ensure this class is defined
+// NavigationParams
 data class NavigationParams(
     val sourceDisplay: String,
     val destinationDisplay: String,
@@ -41,46 +40,46 @@ data class NavigationParams(
 
 class MainViewModel(application: Application, private val tripRepository: TripRepository) : AndroidViewModel(application) {
 
+    // --- Location State ---
     private val _currentLocationDisplayString = MutableLiveData<String?>()
     val currentLocationDisplayString: LiveData<String?> = _currentLocationDisplayString
-
     private val _currentLocationData = MutableLiveData<Location?>()
     val currentLocationData: LiveData<Location?> = _currentLocationData
 
+    // --- Autocomplete State ---
     private val _destinationSuggestions = MutableLiveData<List<String>>()
     val destinationSuggestions: LiveData<List<String>> = _destinationSuggestions
-
     private val _sourceSuggestions = MutableLiveData<List<String>>()
     val sourceSuggestions: LiveData<List<String>> = _sourceSuggestions
-
     private val suggestionItemsMap = mutableMapOf<String, StopFinderLocation>()
-
     private var _selectedOriginFromAutocomplete = MutableLiveData<StopFinderLocation?>()
     val selectedOriginFromAutocomplete: LiveData<StopFinderLocation?> = _selectedOriginFromAutocomplete
-
     private var _selectedDestinationFromAutocomplete = MutableLiveData<StopFinderLocation?>()
     val selectedDestinationFromAutocomplete: LiveData<StopFinderLocation?> = _selectedDestinationFromAutocomplete
 
+    // --- UI Control State ---
     private val _isLoading = MutableLiveData<Boolean>(false)
     val isLoading: LiveData<Boolean> = _isLoading
-
     private val _userMessage = MutableLiveData<Event<String>>()
     val userMessage: LiveData<Event<String>> = _userMessage
-
     private val _navigateToRouteOptions = MutableLiveData<Event<NavigationParams>>()
     val navigateToRouteOptions: LiveData<Event<NavigationParams>> = _navigateToRouteOptions
 
+    // --- Date/Time Selection State ---
     private val _selectedDateTimeCalendar = MutableLiveData<Calendar>()
     val selectedDateTimeCalendar: LiveData<Calendar> = _selectedDateTimeCalendar
-
     private val _tripTimeType = MutableLiveData<String>()
     val tripTimeType: LiveData<String> = _tripTimeType
-
     private val _isUserDateTimeManuallySet = MutableLiveData<Boolean>(false)
     val isUserDateTimeManuallySet: LiveData<Boolean> = _isUserDateTimeManuallySet
 
+    // --- Preferences State ---
     private val _lastQueryPreferences = MutableLiveData<LastQueryPreferences?>()
     val lastQueryPreferences: LiveData<LastQueryPreferences?> = _lastQueryPreferences
+
+    // --- NEW: Favorites State ---
+    private val _favoritesList = MutableLiveData<List<FavoriteTripQuery>>()
+    val favoritesList: LiveData<List<FavoriteTripQuery>> = _favoritesList
 
     private var sourceSearchJob: Job? = null
     private var destinationSearchJob: Job? = null
@@ -95,7 +94,8 @@ class MainViewModel(application: Application, private val tripRepository: TripRe
         _selectedDateTimeCalendar.value = Calendar.getInstance()
         _tripTimeType.value = "dep"
         _isUserDateTimeManuallySet.value = false
-        // loadLastTripPreferences() is called by MainActivity after ViewModel is ready
+        loadLastTripPreferences()
+        loadFavorites() // Load favorites on init
     }
 
     fun onOriginRadioButtonSelected(isCurrentLocation: Boolean) {
@@ -148,6 +148,7 @@ class MainViewModel(application: Application, private val tripRepository: TripRe
     fun clearSelectedOriginAfterTextChange() {
         _selectedOriginFromAutocomplete.value = null
     }
+
     fun clearSelectedDestinationAfterTextChange() {
         _selectedDestinationFromAutocomplete.value = null
     }
@@ -176,7 +177,7 @@ class MainViewModel(application: Application, private val tripRepository: TripRe
     }
 
     private fun fetchAutocompleteSuggestions(query: String, fieldType: String) {
-        Log.d("ViewModelAutocomplete", "Fetching suggestions for '$query' for $fieldType via Repository")
+        Log.d("ViewModelAutocomplete", "Fetching suggestions for '$query' for $fieldType")
         viewModelScope.launch {
             val result = tripRepository.findLocations(BuildConfig.TfNSW_API_KEY, query)
             if (result.isSuccess) {
@@ -194,11 +195,11 @@ class MainViewModel(application: Application, private val tripRepository: TripRe
 
                 if (fieldType == "destination") {
                     _destinationSuggestions.value = suggestionDisplayNames
-                } else { // source
+                } else {
                     _sourceSuggestions.value = suggestionDisplayNames
                 }
             } else {
-                Log.e("ViewModelAutocomplete", "Error fetching suggestions: ${result.exceptionOrNull()?.message}")
+                Log.e("ViewModelAutocomplete", "API Error for /stop_finder: ${result.exceptionOrNull()?.message}")
                 _userMessage.value = Event("Could not fetch suggestions.")
                 if (fieldType == "destination") _destinationSuggestions.value = emptyList() else _sourceSuggestions.value = emptyList()
             }
@@ -271,10 +272,61 @@ class MainViewModel(application: Application, private val tripRepository: TripRe
     }
 
     fun loadLastTripPreferences() {
-        viewModelScope.launch { // Can be viewModelScope if Repo uses withContext(Dispatchers.IO)
+        viewModelScope.launch {
             _lastQueryPreferences.postValue(tripRepository.loadLastTripQueryDetails())
         }
     }
+
+    // --- NEW: Favorites Methods ---
+    fun loadFavorites() {
+        viewModelScope.launch {
+            _favoritesList.postValue(tripRepository.getFavorites())
+        }
+    }
+
+    fun addFavorite(favoriteName: String, queryData: FavoriteTripQueryData) {
+        viewModelScope.launch {
+            val favorite = FavoriteTripQuery(
+                favoriteName = favoriteName,
+                originDisplayName = queryData.originDisplay,
+                originType = queryData.originType,
+                originValue = queryData.originValue,
+                destinationDisplayName = queryData.destDisplay,
+                destinationType = queryData.destType,
+                destinationValue = queryData.destValue,
+                isOriginCurrentLocation = queryData.isOriginCurrentLocation
+            )
+            val success = tripRepository.addFavorite(favorite)
+            if (success) {
+                _userMessage.postValue(Event("'$favoriteName' added to favorites."))
+                loadFavorites() // Refresh the list
+            } else {
+                _userMessage.postValue(Event("Favorite '$favoriteName' already exists or could not be added."))
+            }
+        }
+    }
+
+    fun removeFavorite(favoriteName: String) {
+        viewModelScope.launch {
+            val success = tripRepository.removeFavorite(favoriteName)
+            if (success) {
+                _userMessage.postValue(Event("Favorite '$favoriteName' removed."))
+                loadFavorites() // Refresh the list
+            } else {
+                _userMessage.postValue(Event("Could not remove favorite '$favoriteName'."))
+            }
+        }
+    }
+
+    // Helper data class for constructing a favorite from current inputs
+    // This can be a top-level class or an inner class if preferred.
+    // For simplicity and since it's only used by MainViewModel to receive data from MainActivity for this action:
+    data class FavoriteTripQueryData(
+        val originDisplay: String, val originType: String, val originValue: String,
+        val destDisplay: String, val destType: String, val destValue: String,
+        val isOriginCurrentLocation: Boolean
+    )
+
 
     private fun transformApiJourneysToDisplayableOptions(apiJourneys: List<Journey>): List<DisplayableTripOption> {
         val displayableOptions = mutableListOf<DisplayableTripOption>()

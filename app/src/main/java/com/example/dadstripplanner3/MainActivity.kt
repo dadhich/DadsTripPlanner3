@@ -6,14 +6,14 @@ import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import android.content.Context
 import android.content.Intent
-import android.content.SharedPreferences
+import android.widget.EditText
 import android.content.pm.PackageManager
 import android.location.Location
 import android.location.LocationManager
 import android.os.Bundle
-import android.os.Handler
+import android.text.InputType
 import android.os.Looper
-import android.provider.Settings
+import android.app.AlertDialog
 import android.text.Editable
 import android.text.TextWatcher
 import android.util.Log
@@ -52,8 +52,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     private lateinit var fusedLocationClient: FusedLocationProviderClient
-    // SharedPreferences is now handled by the Repository, accessed via ViewModel
-    // private lateinit var sharedPreferences: SharedPreferences // Removed
 
     private var locationCallback: LocationCallback? = null
     private var requestingLocationUpdates = false
@@ -95,7 +93,6 @@ class MainActivity : AppCompatActivity() {
         binding.root.isFocusableInTouchMode = true
 
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
-        // sharedPreferences = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE) // Removed
 
         setupAutocompleteAdapters()
         setupUIObservers()
@@ -141,7 +138,7 @@ class MainActivity : AppCompatActivity() {
                     isSettingSourceTextProgrammatically = true
                     binding.autoCompleteTextViewSourceCustom.setText(it.originDisplay)
                     isSettingSourceTextProgrammatically = false
-                    viewModel.setSelectedOrigin(StopFinderLocation( // Corrected: Was using lastOriginValue, etc.
+                    viewModel.setSelectedOrigin(StopFinderLocation(
                         id = it.originValue, name = it.originDisplay, type = it.originType,
                         disassembledName = it.originDisplay, coordinates = null, parent = null, modes = null, assignedStops = null, matchQuality = null, isBest = null, isGlobalId = null
                     ))
@@ -158,7 +155,6 @@ class MainActivity : AppCompatActivity() {
                 }
                 viewModel.updateSelectedDateTime(userSelectedDateTimeCalendar)
                 viewModel.updateTripTimeType(it.selectedTimeType)
-
                 initializeUIFields()
             }
         }
@@ -220,7 +216,12 @@ class MainActivity : AppCompatActivity() {
             } else {
                 if (!binding.radioButtonArriveBy.isChecked) binding.radioButtonArriveBy.isChecked = true
             }
-            // updateSelectedDateTimeDisplay() // This might cause redundant calls, let other observers handle if possible
+        }
+
+        viewModel.favoritesList.observe(this) { favorites ->
+            Log.d("MainActivity", "Favorites list updated, size: ${favorites.size}")
+            // If we had a spinner, we'd update it here.
+            // For now, the "View Favorites" button will fetch this list when clicked.
         }
     }
 
@@ -309,6 +310,14 @@ class MainActivity : AppCompatActivity() {
             viewModel.updateSelectedDateTime(userSelectedDateTimeCalendar)
         }
 
+        binding.buttonAddToFavorites.setOnClickListener {
+            promptForFavoriteNameAndAdd()
+        }
+
+        binding.buttonViewFavorites.setOnClickListener {
+            showFavoritesDialog()
+        }
+
         binding.buttonNext.setOnClickListener {
             if (binding.radioButtonCurrentLocation.isChecked) {
                 if (!isLocationPermissionGranted()) { Toast.makeText(this, "Location permission needed.", Toast.LENGTH_LONG).show(); requestLocationPermission(); return@setOnClickListener }
@@ -383,6 +392,156 @@ class MainActivity : AppCompatActivity() {
                 depArrMacro = depArrMacro
             )
         }
+    }
+
+    // --- NEW: Favorites Handling Methods ---
+    private fun promptForFavoriteNameAndAdd() {
+        val currentOriginDisplay: String
+        val currentOriginType: String
+        val currentOriginValue: String
+        val isOriginCurrentlyCurrentLocation: Boolean
+
+        if (binding.radioButtonCurrentLocation.isChecked) {
+            isOriginCurrentlyCurrentLocation = true
+            currentOriginDisplay = viewModel.currentLocationDisplayString.value ?: "My Current Location"
+            viewModel.currentLocationData.value?.let {
+                currentOriginType = "coord"
+                currentOriginValue = "${it.longitude}:${it.latitude}:EPSG:4326"
+            } ?: run {
+                Toast.makeText(this, "Current location not available to save as favorite.", Toast.LENGTH_SHORT).show()
+                return
+            }
+        } else {
+            isOriginCurrentlyCurrentLocation = false
+            currentOriginDisplay = binding.autoCompleteTextViewSourceCustom.text.toString().trim()
+            if (currentOriginDisplay.isEmpty()) {
+                Toast.makeText(this, "Custom origin is empty, cannot save.", Toast.LENGTH_SHORT).show()
+                return
+            }
+            val selectedOrigin = viewModel.selectedOriginFromAutocomplete.value
+            if (selectedOrigin != null && (selectedOrigin.name == currentOriginDisplay || selectedOrigin.disassembledName == currentOriginDisplay || viewModel.formatSuggestion(selectedOrigin) == currentOriginDisplay) && selectedOrigin.id != null && selectedOrigin.type != null) {
+                currentOriginType = selectedOrigin.type!!
+                currentOriginValue = selectedOrigin.id!!
+            } else {
+                currentOriginType = "any" // If not from autocomplete, save as "any"
+                currentOriginValue = currentOriginDisplay
+            }
+        }
+
+        val currentDestDisplay = binding.autoCompleteTextViewDestination.text.toString().trim()
+        if (currentDestDisplay.isEmpty()) {
+            Toast.makeText(this, "Destination is empty, cannot save.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val currentDestType: String
+        val currentDestValue: String
+        val selectedDest = viewModel.selectedDestinationFromAutocomplete.value
+        if (selectedDest != null && (selectedDest.name == currentDestDisplay || selectedDest.disassembledName == currentDestDisplay || viewModel.formatSuggestion(selectedDest) == currentDestDisplay) && selectedDest.id != null && selectedDest.type != null) {
+            currentDestType = selectedDest.type!!
+            currentDestValue = selectedDest.id!!
+        } else {
+            // Check if it's the default Hornsby station
+            if (currentDestDisplay.equals(viewModel.defaultDestinationAddress, ignoreCase = true) && selectedDest == null) {
+                currentDestType = viewModel.defaultDestinationType
+                currentDestValue = viewModel.defaultDestinationId
+            } else {
+                currentDestType = "any"
+                currentDestValue = currentDestDisplay
+            }
+        }
+
+        val editText = EditText(this).apply { inputType = InputType.TYPE_CLASS_TEXT }
+        AlertDialog.Builder(this)
+            .setTitle("Save Favorite Trip")
+            .setMessage("Enter a name for this favorite:")
+            .setView(editText)
+            .setPositiveButton("Save") { dialog, _ ->
+                val favoriteName = editText.text.toString().trim()
+                if (favoriteName.isNotEmpty()) {
+                    val queryData = MainViewModel.FavoriteTripQueryData(
+                        originDisplay = currentOriginDisplay,
+                        originType = currentOriginType,
+                        originValue = currentOriginValue,
+                        destDisplay = currentDestDisplay,
+                        destType = currentDestType,
+                        destValue = currentDestValue,
+                        isOriginCurrentLocation = isOriginCurrentlyCurrentLocation
+                    )
+                    viewModel.addFavorite(favoriteName, queryData)
+                } else {
+                    Toast.makeText(this, "Favorite name cannot be empty.", Toast.LENGTH_SHORT).show()
+                }
+                dialog.dismiss()
+            }
+            .setNegativeButton("Cancel") { dialog, _ -> dialog.cancel() }
+            .show()
+    }
+
+    private fun showFavoritesDialog() {
+        val favorites = viewModel.favoritesList.value ?: emptyList()
+        if (favorites.isEmpty()) {
+            Toast.makeText(this, "No favorites saved yet.", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val favoriteNames = favorites.map { it.favoriteName }.toTypedArray()
+
+        AlertDialog.Builder(this)
+            .setTitle("Select a Favorite Trip")
+            .setItems(favoriteNames) { dialog, which ->
+                // User selected a favorite
+                val selectedFav = favorites[which]
+                applyFavoriteToFields(selectedFav)
+                dialog.dismiss()
+            }
+            .setNeutralButton("Manage") { _, _ -> // Placeholder for more actions like delete
+                showManageFavoritesDialog(favorites)
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun showManageFavoritesDialog(currentFavorites: List<FavoriteTripQuery>) {
+        if (currentFavorites.isEmpty()) {
+            Toast.makeText(this, "No favorites to manage.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val favoriteNames = currentFavorites.map { it.favoriteName }.toTypedArray()
+        AlertDialog.Builder(this)
+            .setTitle("Manage Favorites (Tap to Delete)")
+            .setItems(favoriteNames) { _, which ->
+                // Confirm deletion
+                val favNameToDelete = favoriteNames[which]
+                AlertDialog.Builder(this)
+                    .setTitle("Delete Favorite")
+                    .setMessage("Are you sure you want to delete '$favNameToDelete'?")
+                    .setPositiveButton("Delete") { _, _ ->
+                        viewModel.removeFavorite(favNameToDelete)
+                    }
+                    .setNegativeButton("Cancel", null)
+                    .show()
+            }
+            .setPositiveButton("Done", null)
+            .show()
+    }
+
+
+    private fun applyFavoriteToFields(favorite: FavoriteTripQuery) {
+        isSettingDestinationTextProgrammatically = true
+        binding.autoCompleteTextViewDestination.setText(favorite.destinationDisplayName)
+        viewModel.setSelectedDestination(StopFinderLocation(favorite.destinationValue, null, favorite.destinationDisplayName, favorite.destinationDisplayName, favorite.destinationType, null, null, null, null, null, null))
+        isSettingDestinationTextProgrammatically = false
+
+        if (favorite.isOriginCurrentLocation) {
+            binding.radioButtonCurrentLocation.isChecked = true // This will trigger listener to fetch location
+        } else {
+            binding.radioButtonCustomLocation.isChecked = true
+            isSettingSourceTextProgrammatically = true
+            binding.autoCompleteTextViewSourceCustom.setText(favorite.originDisplayName)
+            viewModel.setSelectedOrigin(StopFinderLocation(favorite.originValue, null, favorite.originDisplayName, favorite.originDisplayName, favorite.originType, null, null, null, null, null, null))
+            isSettingSourceTextProgrammatically = false
+        }
+        Toast.makeText(this, "'${favorite.favoriteName}' loaded.", Toast.LENGTH_SHORT).show()
     }
 
     private fun loadLastSelectionsOrDefaults() {

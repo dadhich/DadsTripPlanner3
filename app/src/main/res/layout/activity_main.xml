@@ -8,7 +8,7 @@
     android:paddingStart="24dp"
     android:paddingEnd="24dp"
     android:paddingBottom="24dp"
-    android:paddingTop="?attr/actionBarSize"
+    android:paddingTop="24dp"
     android:fitsSystemWindows="true"
     android:focusable="true"
     android:focusableInTouchMode="true"
@@ -18,7 +18,7 @@
         android:id="@+id/textViewScreenTitle"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="24dp"
+        android:layout_marginTop="16dp"
         android:text="@string/screen_title_plan_trip"
         android:textColor="?android:textColorPrimary"
         android:textSize="28sp"
@@ -90,7 +90,6 @@
             android:buttonTint="?attr/colorPrimary"
             android:text="@string/radio_button_custom_location_label"
             android:textColor="?android:textColorPrimary" />
-
     </RadioGroup>
 
     <AutoCompleteTextView
@@ -178,6 +177,35 @@
         app:layout_constraintTop_toTopOf="@id/textViewSelectedDateTime"
         app:layout_constraintBottom_toBottomOf="@id/textViewSelectedDateTime"/>
 
+    <LinearLayout
+        android:id="@+id/favoritesLayout"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/textViewSelectedDateTime"
+        android:layout_marginTop="24dp">
+
+        <Button
+            android:id="@+id/buttonAddToFavorites"
+            style="@style/Widget.Material3.Button.OutlinedButton"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Add to Favorites"
+            android:layout_marginEnd="8dp"/>
+
+        <Button
+            android:id="@+id/buttonViewFavorites"
+            style="@style/Widget.Material3.Button.OutlinedButton"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="View Favorites"
+            android:layout_marginStart="8dp"/>
+    </LinearLayout>
+
 
     <Button
         android:id="@+id/buttonNext"
@@ -190,7 +218,7 @@
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/textViewSelectedDateTime"
+        app:layout_constraintTop_toBottomOf="@id/favoritesLayout"
         app:layout_constraintVertical_bias="1.0" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

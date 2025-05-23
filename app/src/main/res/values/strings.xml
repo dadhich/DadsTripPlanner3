@@ -8,5 +8,12 @@
     <string name="radio_button_current_location">My current location</string>
     <string name="hint_enter_start_address">Specify starting address</string>
     <string name="button_next">Next</string>
+    <string name="trip_time_options">I wish to</string>
+    <string name="depart_at">Depart At</string>
+    <string name="arrive_by">Arrive By</string>
+    <string name="now_default">Now (Default)</string>
+    <string name="change_date_and_time">Change Date and Time</string>
+    <string name="view_favourites">View Favourites</string>
+    <string name="add_to_favourites">Add to Favourites</string>
     <!-- ... and so on for other text ... -->
 </resources>
